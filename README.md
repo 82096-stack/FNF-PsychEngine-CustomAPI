@@ -10,7 +10,7 @@
 
 | 依赖 / Tool | 版本 / Version | 说明 / Notes |
 |---|---|---|
-| **Haxe** | 4.3.4+ | [download](https://haxe.org/download) |
+| **Haxe** | 4.3.2+ | [download](https://haxe.org/download) |
 | **git** | any | [download](https://git-scm.com) |
 | **macOS** | Xcode CLT | `xcode-select --install` |
 | **Windows** | Visual Studio 2022 | `VC.Tools.x86.x64` + `Windows10SDK.19041` |
@@ -44,7 +44,7 @@ haxelib run lime build windows
 
 | 包 / Package | 版本 / Version | 安装指令 / Install Command |
 |---|---|---|
-| **lime** | 8.2.0 | `haxelib install lime 8.2.0` |
+| **lime** | 8.1.2 | `haxelib install lime 8.1.2` |
 | **openfl** | 9.3.3 | `haxelib install openfl 9.3.3` |
 | **flixel** | 5.6.1 | `haxelib install flixel 5.6.1` |
 | **flixel-addons** | 3.2.2 | `haxelib install flixel-addons 3.2.2` |
