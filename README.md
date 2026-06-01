@@ -21,7 +21,7 @@
 ### macOS / Linux
 
 ```bash
-cd FNF-PsychEngine-1.0.4
+cd FNF-PsychEngine-CustomAPI
 chmod +x setup/unix.sh
 ./setup/unix.sh
 haxelib run lime build mac     # macOS
@@ -31,7 +31,7 @@ haxelib run lime build linux   # Linux
 ### Windows
 
 ```cmd
-cd FNF-PsychEngine-1.0.4
+cd FNF-PsychEngine-CustomAPI
 setup\windows.bat
 haxelib run lime build windows
 ```
