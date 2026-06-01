@@ -1,0 +1,13 @@
+{
+	"name": "hxbgfx",
+	"url": "https://github.com/bkaradzic/bgfx",
+	"license": "BSD",
+	"tags": ["bgfx", "rendering", "gpu", "cross-platform", "metal", "vulkan", "directx", "opengl"],
+	"description": "Haxe bindings for bgfx — cross-platform rendering library supporting Metal, Vulkan, DirectX 12, and OpenGL from a single binary.",
+	"version": "1.0.0",
+	"releasenote": "Initial release with bgfx C99 API bindings, build system integration, and runtime API switching support.",
+	"contributors": ["PsychEngine"],
+	"dependencies": {
+		"hxcpp": "4.3.2"
+	}
+}
