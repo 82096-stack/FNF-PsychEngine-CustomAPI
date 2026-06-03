@@ -1,37 +1,67 @@
 package objects;
 
 #if ACHIEVEMENTS_ALLOWED
+import flixel.FlxG;
+import flixel.FlxSprite;
+import flixel.group.FlxSpriteGroup;
+import flixel.text.FlxText;
+import flixel.tweens.FlxTween;
+import flixel.tweens.FlxEase;
+import flixel.util.FlxColor;
+import flixel.math.FlxMath;
 import openfl.events.Event;
-import openfl.geom.Matrix;
-import flash.display.BitmapData;
-import openfl.Lib;
 
-class AchievementPopup extends openfl.display.Sprite {
+/**
+ * AchievementPopup — bgfx-compatible version.
+ *
+ * Previously extended openfl.display.Sprite and used raw Graphics API
+ * (beginFill/drawRect/beginBitmapFill). Now extends FlxSpriteGroup
+ * and renders entirely through flixel's draw stack → bgfx.
+ *
+ * Uses a dedicated PsychCamera to stay on top across state switches.
+ */
+class AchievementPopup extends FlxSpriteGroup
+{
 	public var onFinish:Void->Void = null;
-	var alphaTween:FlxTween;
+
+	var bg:FlxSprite;
+	var icon:FlxSprite;
+	var nameText:FlxText;
+	var descText:FlxText;
+
+	var lerpTime:Float = 0;
+	var countedTime:Float = 0;
+	var timePassed:Float = -1;
+	public var intendedY:Float = 0;
+
 	var lastScale:Float = 1;
+	var popupCam:FlxCamera;
+
 	public function new(achieve:String, onFinish:Void->Void)
 	{
 		super();
 
-		// bg
-		graphics.beginFill(FlxColor.BLACK);
-		graphics.drawRoundRect(0, 0, 420, 130, 16, 16);
+		this.onFinish = onFinish;
 
-		// achievement icon
+		// -- Background (rounded rectangle approximation as filled rect) --
+		bg = new FlxSprite().makeGraphic(420, 130, FlxColor.BLACK);
+		bg.alpha = 0.85;
+		add(bg);
+
+		// -- Achievement icon --
 		var graphic = null;
 		var hasAntialias:Bool = ClientPrefs.data.antialiasing;
 		var image:String = 'achievements/$achieve';
-		
+
 		var achievement:Achievement = null;
-		if(Achievements.exists(achieve)) achievement = Achievements.get(achieve);
+		if (Achievements.exists(achieve)) achievement = Achievements.get(achieve);
 
 		#if MODS_ALLOWED
 		var lastMod = Mods.currentModDirectory;
-		if(achievement != null) Mods.currentModDirectory = achievement.mod != null ? achievement.mod : '';
+		if (achievement != null) Mods.currentModDirectory = achievement.mod != null ? achievement.mod : '';
 		#end
 
-		if(Paths.fileExists('images/$image-pixel.png', IMAGE))
+		if (Paths.fileExists('images/$image-pixel.png', IMAGE))
 		{
 			graphic = Paths.image('$image-pixel', false);
 			hasAntialias = false;
@@ -42,136 +72,104 @@ class AchievementPopup extends openfl.display.Sprite {
 		Mods.currentModDirectory = lastMod;
 		#end
 
-		if(graphic == null) graphic = Paths.image('unknownMod', false);
+		if (graphic == null) graphic = Paths.image('unknownMod', false);
 
-		var sizeX = 100;
-		var sizeY = 100;
+		icon = new FlxSprite(15, 15);
+		icon.loadGraphic(graphic);
+		icon.setGraphicSize(100, 100);
+		icon.updateHitbox();
+		icon.antialiasing = hasAntialias;
+		add(icon);
 
-		var imgX = 15;
-		var imgY = 15;
-		var image = graphic.bitmap;
-		graphics.beginBitmapFill(image, new Matrix(sizeX / image.width, 0, 0, sizeY / image.height, imgX, imgY), false, hasAntialias);
-		graphics.drawRect(imgX, imgY, sizeX + 10, sizeY + 10);
-
-		// achievement name/description
+		// -- Name / Description text --
 		var name:String = 'Unknown';
 		var desc:String = 'Description not found';
-		if(achievement != null)
+		if (achievement != null)
 		{
-			if(achievement.name != null) name = Language.getPhrase('achievement_$achieve', achievement.name);
-			if(achievement.description != null)  desc = Language.getPhrase('description_$achieve', achievement.description);
+			if (achievement.name != null) name = Language.getPhrase('achievement_$achieve', achievement.name);
+			if (achievement.description != null) desc = Language.getPhrase('description_$achieve', achievement.description);
 		}
 
-		var textX = sizeX + imgX + 15;
-		var textY = imgY + 20;
+		var textX = 130;
+		nameText = new FlxText(textX, 35, 270, name, 16);
+		nameText.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT);
+		add(nameText);
 
-		var text:FlxText = new FlxText(0, 0, 270, 'TEST!!!', 16);
-		text.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT);
-		drawTextAt(text, name, textX, textY);
-		drawTextAt(text, desc, textX, textY + 30);
-		graphics.endFill();
+		descText = new FlxText(textX, 65, 270, desc, 14);
+		descText.setFormat(Paths.font("vcr.ttf"), 14, FlxColor.WHITE, LEFT);
+		add(descText);
 
-		text.graphic.bitmap.dispose();
-		text.graphic.bitmap.disposeImage();
-		text.destroy();
+		// -- Dedicated camera to render on top of everything --
+		popupCam = new PsychCamera(0, 0, FlxG.width, FlxG.height);
+		popupCam.bgColor = FlxColor.TRANSPARENT;
+		FlxG.cameras.add(popupCam, false);
+		this.cameras = [popupCam];
 
-		// other stuff
-		FlxG.stage.addEventListener(Event.RESIZE, onResize);
-		addEventListener(Event.ENTER_FRAME, update);
-
-		FlxG.game.addChild(this); //Don't add it below mouse, or it will disappear once the game changes states
-
-		// fix scale
+		// -- Positioning --
 		lastScale = (FlxG.stage.stageHeight / FlxG.height);
 		this.x = 20 * lastScale;
 		this.y = -130 * lastScale;
-		this.scaleX = lastScale;
-		this.scaleY = lastScale;
+		this.scale.set(lastScale, lastScale);
 		intendedY = 20;
+
+		// -- Window resize handling --
+		FlxG.stage.addEventListener(Event.RESIZE, onResize);
 	}
 
-	var bitmaps:Array<BitmapData> = [];
-	function drawTextAt(text:FlxText, str:String, textX:Float, textY:Float)
+	override function update(elapsed:Float):Void
 	{
-		text.text = str;
-		text.updateHitbox();
+		super.update(elapsed);
 
-		var clonedBitmap:BitmapData = text.graphic.bitmap.clone();
-		bitmaps.push(clonedBitmap);
-		graphics.beginBitmapFill(clonedBitmap, new Matrix(1, 0, 0, 1, textX, textY), false, false);
-		graphics.drawRect(textX, textY, text.width + textX, text.height + textY);
-	}
-	
-	var lerpTime:Float = 0;
-	var countedTime:Float = 0;
-	var timePassed:Float = -1;
-	public var intendedY:Float = 0;
-
-	function update(e:Event)
-	{
-		if(timePassed < 0) 
+		if (timePassed < 0)
 		{
-			timePassed = Lib.getTimer();
+			timePassed = openfl.Lib.getTimer();
 			return;
 		}
 
-		var time = Lib.getTimer();
-		var elapsed:Float = (time - timePassed) / 1000;
+		var time = openfl.Lib.getTimer();
+		var realElapsed:Float = (time - timePassed) / 1000;
 		timePassed = time;
-		//trace('update called! $elapsed');
 
-		if(elapsed >= 0.5) return; //most likely passed through a loading
+		if (realElapsed >= 0.5) return; // likely passed through a loading screen
 
-		countedTime += elapsed;
-		if(countedTime < 3)
+		countedTime += realElapsed;
+		if (countedTime < 3)
 		{
-			lerpTime = Math.min(1, lerpTime + elapsed);
+			lerpTime = Math.min(1, lerpTime + realElapsed);
 			y = ((FlxEase.elasticOut(lerpTime) * (intendedY + 130)) - 130) * lastScale;
 		}
 		else
 		{
-			y -= FlxG.height * 2 * elapsed * lastScale;
-			if(y <= -130 * lastScale)
-				destroy();
+			y -= FlxG.height * 2 * realElapsed * lastScale;
+			if (y <= -130 * lastScale)
+				destroyPopup();
 		}
 	}
 
-	private function onResize(e:Event)
+	function onResize(e:Event):Void
 	{
 		var mult = (FlxG.stage.stageHeight / FlxG.height);
-		scaleX = mult;
-		scaleY = mult;
+		scale.set(mult, mult);
 
 		x = (mult / lastScale) * x;
 		y = (mult / lastScale) * y;
 		lastScale = mult;
 	}
 
-	public function destroy()
+	public function destroyPopup():Void
 	{
-		Achievements._popups.remove(this);
-		//trace('destroyed achievement, new count: ' + Achievements._popups.length);
-
-		if (FlxG.game.contains(this))
+		// Remove from camera list
+		if (popupCam != null)
 		{
-			FlxG.game.removeChild(this);
+			FlxG.cameras.remove(popupCam);
+			popupCam = null;
 		}
+
 		FlxG.stage.removeEventListener(Event.RESIZE, onResize);
-		removeEventListener(Event.ENTER_FRAME, update);
-		deleteClonedBitmaps();
-	}
 
-	function deleteClonedBitmaps()
-	{
-		for (clonedBitmap in bitmaps)
-		{
-			if(clonedBitmap != null)
-			{
-				clonedBitmap.dispose();
-				clonedBitmap.disposeImage();
-			}
-		}
-		bitmaps = null;
+		Achievements._popups.remove(this);
+		if (onFinish != null) onFinish();
+		destroy();
 	}
 }
 #end

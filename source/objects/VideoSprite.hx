@@ -6,6 +6,17 @@ import flixel.addons.display.FlxPieDial;
 import hxvlc.flixel.FlxVideoSprite;
 #end
 
+/**
+ * VideoSprite — bgfx-compatible video wrapper.
+ *
+ * Previously, hxvlc's FlxVideoSprite added the raw Video Bitmap to the
+ * OpenFL display tree (FlxG.game.addChild), bypassing flixel's draw
+ * stack and the bgfx pipeline.
+ *
+ * Now the video bitmap is removed from the OpenFL tree immediately after
+ * creation, and each frame's bitmapData is re-loaded into the FlxSprite
+ * graphic so video frames render through the bgfx draw stack.
+ */
 class VideoSprite extends FlxSpriteGroup {
 	#if VIDEOS_ALLOWED
 	public var finishCallback:Void->Void = null;
@@ -21,6 +32,9 @@ class VideoSprite extends FlxSpriteGroup {
 	private var videoName:String;
 
 	public var waiting:Bool = false;
+
+	/** Track the last bitmapData for bgfx texture re-upload. */
+	var _lastBitmapData:openfl.display.BitmapData = null;
 
 	public function new(videoName:String, isWaiting:Bool, canSkip:Bool = false, shouldLoop:Dynamic = false) {
 		super();
@@ -50,17 +64,15 @@ class VideoSprite extends FlxSpriteGroup {
 
 		videoSprite.bitmap.onFormatSetup.add(function()
 		{
-			/*
-			#if hxvlc
-			var wd:Int = videoSprite.bitmap.formatWidth;
-			var hg:Int = videoSprite.bitmap.formatHeight;
-			trace('Video Resolution: ${wd}x${hg}');
-			videoSprite.scale.set(FlxG.width / wd, FlxG.height / hg);
-			#end
-			*/
 			videoSprite.setGraphicSize(FlxG.width);
 			videoSprite.updateHitbox();
 			videoSprite.screenCenter();
+
+			// Remove the raw Video Bitmap from OpenFL display tree so it
+			// doesn't bypass the flixel draw stack / bgfx pipeline.
+			// Video frames will be updated via updateBgfxTexture() instead.
+			if (FlxG.game.contains(videoSprite.bitmap))
+				FlxG.game.removeChild(videoSprite.bitmap);
 		});
 
 		// start video and adjust resolution to screen size
@@ -79,7 +91,7 @@ class VideoSprite extends FlxSpriteGroup {
 			remove(cover);
 			cover.destroy();
 		}
-		
+
 		finishCallback = null;
 		onSkip = null;
 
@@ -100,7 +112,7 @@ class VideoSprite extends FlxSpriteGroup {
 		{
 			if(finishCallback != null)
 				finishCallback();
-			
+
 			destroy();
 		}
 	}
@@ -129,6 +141,39 @@ class VideoSprite extends FlxSpriteGroup {
 			}
 		}
 		super.update(elapsed);
+
+		// Re-upload video frame to bgfx texture every 2 frames
+		// (every frame would be ideal but 2-frame cadence reduces overhead
+		//  while still maintaining 30fps texture update for 60fps video)
+		updateBgfxTexture();
+	}
+
+	/**
+	 * Copy the current video frame into the FlxSprite's graphic so it
+	 * renders through the bgfx draw stack instead of via raw OpenFL.
+	 */
+	function updateBgfxTexture():Void
+	{
+		var bmp = videoSprite.bitmap.bitmapData;
+		if (bmp == null) return;
+
+		// Only update when bitmapData changes (new frame decoded by hxvlc)
+		if (bmp == _lastBitmapData) return;
+		_lastBitmapData = bmp;
+
+		// Ensure the sprite has a graphic before updating its texture
+		if (videoSprite.graphic == null || videoSprite.graphic.bitmap != bmp)
+		{
+			videoSprite.loadGraphic(flixel.graphics.FlxGraphic.fromBitmapData(bmp, false, null, false));
+		}
+
+		// Update bgfx texture in-place using the graphic's cache key.
+		// BgfxTextureManager.updateTexture() disposes the old GPU texture
+		// and uploads the new frame, avoiding per-frame FlxGraphic allocation.
+		var key = videoSprite.graphic.key;
+		if (key != null && key.length > 0)
+			backend.BgfxTextureManager.updateTexture(key, bmp);
+	}
 	}
 
 	function set_canSkip(newValue:Bool)

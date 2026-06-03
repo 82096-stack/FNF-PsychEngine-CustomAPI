@@ -43,7 +43,7 @@ class GraphicsAPI
 		#else
 		if (RenderDevice.initialized)
 			return RenderDevice.activeAPI;
-		return detectBestAPI();
+		return getUserPreferredAPI();
 		#end
 	}
 
@@ -116,22 +116,15 @@ class GraphicsAPI
 		return 60;
 	}
 
+	/**
+	 * One-line description: the actual rendering API.
+	 * Reads from persisted save data (only changes on ENTER, not LEFT/RIGHT),
+	 * and resolves "Auto" to the real best API — so "Auto" is never shown.
+	 */
 	public static function getActiveAPIDescription():String
 	{
-		var api = getActiveAPI();
-		var desc = switch(api : String)
-		{
-			case "Auto": 'Auto (${detectBestAPI()})';
-			case "DirectX 12": 'DirectX 12';
-			case "Vulkan": 'Vulkan';
-			case "Metal": 'Metal';
-			case "OpenGL": 'OpenGL';
-			default: 'Unknown ($api)';
-		};
-
-		if (RenderDevice.initialized)
-			desc += ' | ${RenderDevice.getRendererName()}';
-
-		return desc;
+		var saved = FlxG.save.data.graphicsAPI;
+		var api = (saved != null) ? cast(saved, GraphicsAPIType) : GraphicsAPIType.Auto;
+		return resolveAPI(api);
 	}
 }

@@ -5,6 +5,17 @@ import flixel.addons.display.FlxRuntimeShader;
 import lime.graphics.opengl.GLProgram;
 import lime.app.Application;
 
+/**
+ * Error-handled shader that pre-compiles via bgfx when the custom graphics
+ * API is active.
+ *
+ * When BGFX_RENDERER is enabled, bgfx shader programs are compiled
+ * eagerly during shader construction (inside __createGLProgram) so
+ * the first frame doesn't incur a compilation stall. The OpenGL
+ * GLProgram is still created for flixel compatibility but is never
+ * used for rendering — PsychCamera.render() routes all drawing
+ * through BgfxShaderManager.
+ */
 class ErrorHandledShader extends FlxShader implements IErrorHandler
 {
 	public var shaderName:String = '';
@@ -19,6 +30,13 @@ class ErrorHandledShader extends FlxShader implements IErrorHandler
 	{
 		try
 		{
+			#if BGFX_RENDERER
+			// Pre-compile bgfx shader so first render has zero compile delay.
+			// This replaces the OpenGL compilation as the "real" shader path;
+			// the GLProgram below is only for flixel's internal bookkeeping.
+			backend.BgfxShaderManager.get(this);
+			#end
+
 			final res = super.__createGLProgram(vertexSource, fragmentSource);
 			return res;
 		}
@@ -28,7 +46,7 @@ class ErrorHandledShader extends FlxShader implements IErrorHandler
 			return null;
 		}
 	}
-	
+
 	public static function crashSave(shaderName:String, error:Dynamic, onError:Dynamic) // prevent the app from dying immediately
 	{
 		if(shaderName == null) shaderName = 'unnamed';
@@ -69,6 +87,11 @@ class ErrorHandledRuntimeShader extends FlxRuntimeShader implements IErrorHandle
 	{
 		try
 		{
+			#if BGFX_RENDERER
+			// Pre-compile bgfx shader so first render has zero compile delay
+			backend.BgfxShaderManager.get(this);
+			#end
+
 			final res = super.__createGLProgram(vertexSource, fragmentSource);
 			return res;
 		}

@@ -13,6 +13,7 @@ class BgfxTextureManager
 	{
 		if (graphic == null || graphic.bitmap == null) return 0;
 		var key = graphic.key;
+		if (key == null) return 0;
 		if (textures.exists(key)) return textures.get(key);
 		var h = createFromBitmap(graphic.bitmap);
 		if (h != 0) { textures.set(key, h); cachedBitmaps.set(key, graphic.bitmap); }
@@ -22,11 +23,20 @@ class BgfxTextureManager
 	static function createFromBitmap(bmp:BitmapData):Int
 	{
 		if (bmp == null) return 0;
-		var pixels = bmp.getPixels(bmp.rect);
-		if (pixels == null) return 0;
-		var mem = BgfxAPI.copy(pixels, bmp.width * bmp.height * 4);
-		if (mem == null) return 0;
-		return BgfxAPI.createTexture2D(bmp.width, bmp.height, false, 1, 66 /*BGRA8*/, 0, mem);
+		try
+		{
+			if (bmp.rect == null) return 0;
+			var pixels = bmp.getPixels(bmp.rect);
+			if (pixels == null) return 0;
+			var mem = BgfxAPI.copy(pixels, bmp.width * bmp.height * 4);
+			if (mem == null) return 0;
+			return BgfxAPI.createTexture2D(bmp.width, bmp.height, false, 1, 66 /*BGRA8*/, 0, mem);
+		}
+		catch (e:Dynamic)
+		{
+			trace('BgfxTextureManager: failed to create texture (${bmp.width}x${bmp.height}) — $e');
+			return 0;
+		}
 	}
 
 	public static function dispose(key:String):Void
@@ -60,5 +70,32 @@ class BgfxTextureManager
 			var h = createFromBitmap(bmp);
 			if (h != 0) { textures.set(key, h); cachedBitmaps.set(key, bmp); }
 		}
+	}
+
+	/**
+	 * Update an existing GPU texture with new bitmap data.
+	 * Disposes the old texture and creates a new one.
+	 * Used for dynamic content like video frames.
+	 */
+	public static function updateTexture(key:String, bmp:BitmapData):Int
+	{
+		if (bmp == null) return 0;
+		var old = textures.get(key);
+		if (old != 0) BgfxAPI.destroyTexture(old);
+		var h = createFromBitmap(bmp);
+		if (h != 0) {
+			textures.set(key, h);
+			cachedBitmaps.set(key, bmp);
+		} else {
+			textures.remove(key);
+			cachedBitmaps.remove(key);
+		}
+		return h;
+	}
+
+	/** Check if a texture is already cached. */
+	public static function has(key:String):Bool
+	{
+		return textures.exists(key);
 	}
 }

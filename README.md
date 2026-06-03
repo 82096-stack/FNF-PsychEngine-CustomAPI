@@ -10,7 +10,7 @@
 
 | 依赖 / Tool | 版本 / Version | 说明 / Notes |
 |---|---|---|
-| **Haxe** | 4.3.2+ | [download](https://haxe.org/download) |
+| **Haxe** | 4.3.2+ | [download](https://haxe.org/download/version/4.3.2) |
 | **git** | any | [download](https://git-scm.com) |
 | **macOS** | Xcode CLT | `xcode-select --install` |
 | **Windows** | Visual Studio 2022 | `VC.Tools.x86.x64` + `Windows10SDK.19041` |
@@ -21,7 +21,7 @@
 ### macOS / Linux
 
 ```bash
-cd FNF-PsychEngine-CustomAPI
+cd FNF-PsychEngine-1.0.4
 chmod +x setup/unix.sh
 ./setup/unix.sh
 haxelib run lime build mac     # macOS
@@ -31,7 +31,7 @@ haxelib run lime build linux   # Linux
 ### Windows
 
 ```cmd
-cd FNF-PsychEngine-CustomAPI
+cd FNF-PsychEngine-1.0.4
 setup\windows.bat
 haxelib run lime build windows
 ```

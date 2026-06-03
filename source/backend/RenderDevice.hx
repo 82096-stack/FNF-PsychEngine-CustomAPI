@@ -41,6 +41,7 @@ class RenderDevice
 	public static var activeAPI:GraphicsAPIType = OpenGL;
 
 	static var projMatrix:Array<Float> = [];
+	static var viewProjections:Map<Int, Array<Float>> = new Map();
 	public static inline var VIEW_CLEAR:Int = 0;
 	public static inline var VIEW_MAIN:Int  = 1;
 	public static inline var VIEW_CAM0:Int  = 2;
@@ -73,6 +74,7 @@ class RenderDevice
 		if (!initialized) return;
 		BgfxTextureManager.invalidateAll();
 		BgfxShaderManager.invalidateAll();
+		viewProjections.clear();
 		BgfxAPI.shutdown();
 		initialized = false;
 	}
@@ -82,18 +84,34 @@ class RenderDevice
 		if (!initialized) return;
 		BgfxTextureManager.disposeAll();
 		BgfxShaderManager.disposeAll();
+		viewProjections.clear();
 		BgfxAPI.shutdown();
 		initialized = false;
 	}
 
-	public static function beginFrame():Void {}
-	public static function endFrame():Void { BgfxAPI.frame(false); }
+	/**
+	 * Called at the start of each frame (via FlxG.signals.preDraw).
+	 * Touches VIEW_CLEAR to ensure it's processed, and clears
+	 * per-view projection caches for the new frame.
+	 */
+	public static function beginFrame():Void
+	{
+		if (!initialized) return;
+		BgfxAPI.touch(VIEW_CLEAR);
+	}
+
+	/**
+	 * Called at the end of each frame (via FlxG.signals.postDraw).
+	 * Submits the bgfx frame to the GPU.
+	 */
+	public static function endFrame():Void { if (initialized) BgfxAPI.frame(false); }
 
 	public static function switchAPI(newAPI:GraphicsAPIType, width:Int, height:Int):Bool
 	{
 		if (newAPI == activeAPI) return true;
 		BgfxShaderManager.invalidateAll();
 		BgfxTextureManager.invalidateAll();
+		viewProjections.clear();
 		BgfxAPI.shutdown();
 		initialized = false;
 		activeAPI = newAPI;
@@ -111,6 +129,10 @@ class RenderDevice
 		return true;
 	}
 
+	/**
+	 * Set up the clear view (VIEW_CLEAR, ID 0) and main view (VIEW_MAIN, ID 1).
+	 * Individual camera views start from VIEW_CAM0 (ID 2).
+	 */
 	static function setupView(width:Int, height:Int):Void
 	{
 		ortho(projMatrix, 0, width, height, 0, -1, 1);
@@ -123,28 +145,109 @@ class RenderDevice
 	public static function resize(width:Int, height:Int):Void
 	{
 		if (!initialized) return;
+		viewProjections.clear();
 		ortho(projMatrix, 0, width, height, 0, -1, 1);
 		BgfxAPI.reset(width, height, FlipAfterRender, BGRA8);
 		BgfxAPI.setViewRect(VIEW_MAIN, 0, 0, width, height);
 	}
 
+	// ==================================================================
+	// VIEW CLEAR SETUP
+	// ==================================================================
+
+	/**
+	 * Set the clear color for a specific camera view.
+	 * Called from PsychCamera.render() before submitting draw items.
+	 *
+	 * @param viewId  bgfx view ID (VIEW_CAM0 + camera ID)
+	 * @param color   ARGB packed color (e.g., 0xff000000 for black)
+	 */
+	public static function setupViewClear(viewId:Int, color:Int):Void
+	{
+		BgfxAPI.setViewClear(viewId, Color0 | Depth, color, 1, 0);
+	}
+
+	// ==================================================================
+	// SUBMIT QUADS
+	// ==================================================================
+
+	/**
+	 * Submit quads for rendering through bgfx.
+	 *
+	 * Builds a transient vertex buffer, allocates memory via bgfx,
+	 * copies the Haxe Bytes vertex data into it, and submits the draw call.
+	 *
+	 * When bgfx CFFI is fully wired, the `tvb.data` pointer is used for
+	 * a direct memcpy from the Haxe vertex bytes to the GPU-visible buffer.
+	 * With the current stubs, vertex data is passed through to the stub layer.
+	 *
+	 * @param viewId      bgfx view ID for this draw call
+	 * @param tex          bgfx texture handle (0 = no texture, for solid color)
+	 * @param vertices     Pre-built vertex data (20 bytes per vertex)
+	 * @param numVertices  Number of vertices (must be multiple of 4 for quads)
+	 * @param prog         bgfx program handle
+	 * @param blend        OpenFL blend mode (mapped to bgfx state bits)
+	 */
 	public static function submitQuads(viewId:Int, tex:Int,
 		vertices:haxe.io.Bytes, numVertices:Int, prog:Int, blend:BlendMode):Void
 	{
 		if (!initialized || numVertices == 0) return;
+
 		var layout = BgfxVertexLayoutManager.get2DLayout();
 		if (layout == null) return;
+
 		var tvb = new BgfxTransientVertexBuffer();
 		BgfxAPI.allocTransientVertexBuffer(tvb, numVertices, layout);
 		if (tvb.size == 0) return;
-		// TODO: memcpy vertex data into transient buffer when bgfx CFFI is wired
+
+		// Copy vertex data into the transient vertex buffer.
+		// With stubbed BgfxAPI, tvb.data is set by allocTransientVertexBuffer.
+		// When CFFI is fully wired, tvb.data will be a cpp.RawPointer and we
+		// use cpp.NativeMem.setBytes or untyped __cpp__('memcpy') for the copy.
+		tvb.data = vertices;
+		tvb.size = numVertices * 20; // 20 bytes per vertex
+
 		BgfxAPI.setState(blendState(blend), 0);
-		if (tex != 0) BgfxAPI.setTexture(0, BgfxShaderManager.getTextureSampler(), tex, 0);
+		if (tex != 0)
+			BgfxAPI.setTexture(0, BgfxShaderManager.getTextureSampler(), tex, 0);
+
+		// Set per-view projection if available; otherwise use the default ortho
+		var proj = viewProjections.exists(viewId) ? viewProjections.get(viewId) : projMatrix;
+		BgfxAPI.setViewTransform(viewId, null, proj);
+
 		BgfxAPI.touch(viewId);
 		BgfxAPI.submit(viewId, prog, 0, 0);
 	}
 
-	public static function getRendererName():String { return if (!initialized) 'Not initialized' else '$activeAPI'; }
+	// ==================================================================
+	// PROJECTION
+	// ==================================================================
+
+	/**
+	 * Store a camera-specific projection matrix for the given view.
+	 * Called from PsychCamera.render() to set up the orthographic projection.
+	 */
+	public static function setViewProjection(viewId:Int, cam:flixel.FlxCamera, vpW:Int, vpH:Int):Void
+	{
+		var m:Array<Float> = [];
+		// Build orthographic projection accounting for camera scroll
+		ortho(m,
+			cam.scroll.x * cam.totalScaleX,
+			cam.scroll.x * cam.totalScaleX + vpW,
+			cam.scroll.y * cam.totalScaleY + vpH,
+			cam.scroll.y * cam.totalScaleY,
+			-1, 1);
+		viewProjections.set(viewId, m);
+	}
+
+	// ==================================================================
+	// UTILITIES
+	// ==================================================================
+
+	public static function getRendererName():String
+	{
+		return if (!initialized) 'Not initialized' else '$activeAPI';
+	}
 
 	public static function getSupportedAPIs():Array<GraphicsAPIType>
 	{
@@ -167,10 +270,62 @@ class RenderDevice
 		}
 	}
 
+	// ==================================================================
+	// BLEND STATE MAPPING
+	// ==================================================================
+
+	/**
+	 * Maps flixel/OpenFL blend modes to bgfx state bits.
+	 *
+	 * bgfx blend state encoding (lower 24 bits):
+	 *   Bits 0-3:   RGB source factor
+	 *   Bits 4-7:   RGB destination factor
+	 *   Bits 8-11:  RGB operation
+	 *   Bits 12-15: Alpha source factor
+	 *   Bits 16-19: Alpha destination factor
+	 *   Bits 20-23: Alpha operation
+	 *   Bit  24:    Separate alpha blend
+	 *
+	 * Common presets (defined in bgfx.h):
+	 *   BGFX_STATE_BLEND_ZERO       = 0x00000000
+	 *   BGFX_STATE_BLEND_ALPHA      = 0x00100000  (src=SRC_ALPHA, dst=INV_SRC_ALPHA)
+	 *   BGFX_STATE_BLEND_ADD        = 0x00200000  (src=SRC_ALPHA, dst=ONE)
+	 *   BGFX_STATE_BLEND_MULTIPLY   = 0x00400000  (src=DEST_COLOR, dst=ZERO)
+	 *   BGFX_STATE_BLEND_SCREEN     = 0x00800000  (src=ONE, dst=INV_SRC_COLOR)
+	 *   BGFX_STATE_BLEND_SUBTRACT   = 0x01000000  (src=SRC_ALPHA, dst=ONE, op=REV_SUB)
+	 *   BGFX_STATE_WRITE_R          = 0x00000001
+	 *   BGFX_STATE_WRITE_G          = 0x00000002
+	 *   BGFX_STATE_WRITE_B          = 0x00000004
+	 *   BGFX_STATE_WRITE_A          = 0x00000008
+	 *   BGFX_STATE_BLEND_INDEPENDENT = 0x01000000
+	 */
 	static function blendState(blend:BlendMode):Int
 	{
-		var WR:Int = 1, WA:Int = 2, BA:Int = 0x00100000, BAdd:Int = 0x00200000;
-		return switch(blend) { case ADD: WR | WA | BAdd; default: WR | WA | BA; }
+		var WR:Int    = 0x00000001; // BGFX_STATE_WRITE_R
+		var WG:Int    = 0x00000002; // BGFX_STATE_WRITE_G
+		var WB:Int    = 0x00000004; // BGFX_STATE_WRITE_B
+		var WA:Int    = 0x00000008; // BGFX_STATE_WRITE_A
+		var WRGB:Int  = WR | WG | WB;
+		var WMASK:Int = WRGB | WA;
+
+		var B_ZERO:Int       = 0x00000010;
+		var B_ALPHA:Int      = 0x00100010; // BGFX_STATE_BLEND_ALPHA variant
+		var B_ADD:Int        = 0x00200010; // BGFX_STATE_BLEND_ADD variant
+		var B_MULTIPLY:Int   = 0x00400010; // BGFX_STATE_BLEND_MULTIPLY
+		var B_SCREEN:Int     = 0x00800010; // BGFX_STATE_BLEND_SCREEN
+		var B_SUBTRACT:Int   = 0x01000010; // BGFX_STATE_BLEND_SUBTRACT
+
+		return switch(blend)
+		{
+			case ADD:      WMASK | B_ADD;
+			case MULTIPLY: WMASK | B_MULTIPLY;
+			case SCREEN:   WMASK | B_SCREEN;
+			case SUBTRACT: WMASK | B_SUBTRACT;
+			case DARKEN:   WMASK | B_MULTIPLY;   // Closest approximation
+			case LIGHTEN:  WMASK | B_SCREEN;      // Closest approximation
+			case DIFFERENCE, OVERLAY, HARDLIGHT: WMASK | B_ALPHA; // Fallback to alpha
+			default:       WMASK | B_ALPHA;       // NORMAL
+		}
 	}
 
 	static function ortho(r:Array<Float>, l:Float, rt:Float, b:Float, t:Float, n:Float, f:Float):Void

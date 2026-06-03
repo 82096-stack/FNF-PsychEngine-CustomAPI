@@ -170,6 +170,13 @@ class Main extends Sprite
 	BgfxWindowManager.init();
 	BgfxFallback.tryInit(game.width, game.height, initAPI, false);
 
+	// bgfx frame hooks (preDraw/postDraw) and camera replacement are
+	// deferred until bgfx C library is compiled and linked. Once active,
+	// re-add FlxG.signals.preDraw/postDraw hooks and camera swap here.
+
+
+
+
 		#if !mobile
 		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);
 		addChild(fpsVar);

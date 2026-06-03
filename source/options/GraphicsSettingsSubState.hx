@@ -8,6 +8,9 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 {
 	var antialiasingOption:Int;
 	var boyfriend:Character = null;
+	var graphicsAPIOptionIndex:Int = -1;
+	var originalAPI:String;
+
 	public function new()
 	{
 		title = Language.getPhrase('graphics_menu', 'Graphics Settings');
@@ -54,17 +57,22 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		option.onChange = onChangeVSync;
 		addOption(option);
 
-		var option:Option = new Option('Graphics Rendering API',
-			'Select which graphics rendering API to use.\n"Auto" picks the best option for your system.\nSwitching applies immediately — no restart needed.\n\nCurrent: ${GraphicsAPI.getActiveAPIDescription()}',
+		var option:Option = new Option('Graphics API',
+			'',
 			'graphicsAPI',
 			STRING,
 			GraphicsAPI.getAvailableAPIs());
-		option.onChange = onChangeGraphicsAPI;
+		option.onChange = refreshAPIDescription;
 		addOption(option);
+		graphicsAPIOptionIndex = optionsArray.length - 1;
 		#end
 
 		super();
 		insert(1, boyfriend);
+
+		// Remember original value so we can restore on BACK
+		originalAPI = ClientPrefs.data.graphicsAPI;
+		refreshAPIDescription();
 	}
 
 	function onChangeAntiAliasing()
@@ -83,26 +91,46 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		GraphicsAPI.applyVSync(ClientPrefs.data.vsync);
 	}
 
-	function onChangeGraphicsAPI()
+	function refreshAPIDescription()
 	{
-		var selected = ClientPrefs.data.graphicsAPI;
+		var current = GraphicsAPI.getActiveAPIDescription();
+		var preview = ClientPrefs.data.graphicsAPI;
+		if (preview == 'Auto') preview = GraphicsAPI.detectBestAPI();
+		var apiOption = optionsArray[graphicsAPIOptionIndex];
+		apiOption.description = 'Select API then press ENTER to confirm.\nCurrent: $current\nPreview: $preview';
 
-		if (selected != 'Auto')
+		@:privateAccess descText.text = apiOption.description;
+		@:privateAccess descText.screenCenter(Y);
+		@:privateAccess descText.y += 270;
+	}
+
+	override function update(elapsed:Float)
+	{
+		super.update(elapsed);
+
+		if (graphicsAPIOptionIndex >= 0 && curSelected == graphicsAPIOptionIndex
+			&& FlxG.keys.justPressed.ENTER)
 		{
-			var newAPI:GraphicsAPIType = cast selected;
-			trace('Switching graphics API to: $selected...');
-			var ok = GraphicsAPI.switchAPI(newAPI);
-			if (ok)
-				trace('Graphics API switched to: $selected');
+			var selected = ClientPrefs.data.graphicsAPI;
+			if (selected != 'Auto')
+				GraphicsAPI.switchAPI(cast selected);
 			else
-				trace('WARNING: could not switch to $selected');
+				GraphicsAPI.switchAPI(GraphicsAPI.detectBestAPI());
+
+			originalAPI = selected;
+			ClientPrefs.saveSettings();
+			refreshAPIDescription();
+			FlxG.sound.play(Paths.sound('confirmMenu'));
 		}
-		else
-		{
-			var best = GraphicsAPI.detectBestAPI();
-			trace('Auto mode — switching to best API: $best');
-			GraphicsAPI.switchAPI(best);
-		}
+	}
+
+	override function close()
+	{
+		// Restore original API if user didn't press ENTER
+		if (ClientPrefs.data.graphicsAPI != originalAPI)
+			ClientPrefs.data.graphicsAPI = originalAPI;
+
+		super.close();
 	}
 
 	override function changeSelection(change:Int = 0)
