@@ -101,8 +101,8 @@ class GraphicsAPI
 		}
 		else
 		{
-			FlxG.drawFramerate = 999;
-			FlxG.updateFramerate = 60;
+			FlxG.drawFramerate = 0;
+			FlxG.updateFramerate = 0;
 			FlxG.game.focusLostFramerate = 60;
 		}
 	}

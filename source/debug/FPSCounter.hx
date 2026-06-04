@@ -60,11 +60,6 @@ class FPSCounter extends TextField
 		text = 'FPS: ${currentFPS}'
 		+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}'
 		+ '\nAPI: ${GraphicsAPI.getActiveAPIDescription()}';
-
-		textColor = 0xFFFFFFFF;
-		var fpsThreshold:Float = FlxG.drawFramerate >= 500 ? 30 : FlxG.drawFramerate * 0.5;
-		if (currentFPS < fpsThreshold)
-			textColor = 0xFFFF0000;
 	}
 
 	inline function get_memoryMegas():Float
