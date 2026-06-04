@@ -101,8 +101,12 @@ class GraphicsAPI
 		}
 		else
 		{
-			FlxG.drawFramerate = 0;
-			FlxG.updateFramerate = 0;
+			// 1000 FPS is the SDL timer hardware limit (1ms granularity).
+			// Setting frameRate to 0 disables the render timer entirely in
+			// Lime/OpenFL, which is why the game drops to 1-2 FPS.
+			// 1000 FPS = truly uncapped — no Haxe game renders faster than this.
+			FlxG.drawFramerate = 1000;
+			FlxG.updateFramerate = 1000;
 			FlxG.game.focusLostFramerate = 60;
 		}
 	}
