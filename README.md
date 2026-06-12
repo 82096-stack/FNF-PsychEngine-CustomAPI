@@ -1,4 +1,4 @@
-![PsychEngineLogo](docs/img/PsychEngineLogoTweak.png)
+![PsychEngineLogo](docs/img/Logo.png)
 
 **Friday Night Funkin': Psych Engine** — A feature-rich FNF modding engine with multi-API rendering support (Metal, Vulkan, DirectX 12, OpenGL).
 
