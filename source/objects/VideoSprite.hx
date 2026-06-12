@@ -174,7 +174,6 @@ class VideoSprite extends FlxSpriteGroup {
 		if (key != null && key.length > 0)
 			backend.BgfxTextureManager.updateTexture(key, bmp);
 	}
-	}
 
 	function set_canSkip(newValue:Bool)
 	{
