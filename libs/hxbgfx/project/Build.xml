@@ -1,0 +1,108 @@
+<!--
+	hxbgfx Build.xml — hxcpp build configuration for linking bgfx
+
+	Included from Project.xml via <include name="libs/hxbgfx/project/Build.xml" />.
+
+	Prebuilt library paths (relative to project root):
+	  libs/hxbgfx/lib/windows/x64/bgfx.lib, bx.lib, bimg.lib
+	  libs/hxbgfx/lib/linux/x64/libbgfx.a, libbx.a, libbimg.a
+	  libs/hxbgfx/lib/macos/libbgfx.a, libbx.a, libbimg.a
+	-->
+<xml>
+	<pragma once="true" />
+
+	<set name="BGFX_DIR" value="libs/hxbgfx" />
+
+	<!-- Source files -->
+	<files id="haxe">
+		<compilerflag value="-I${BGFX_DIR}" />
+		<compilerflag value="-I${BGFX_DIR}/bgfx/include" />
+		<compilerflag value="-I${BGFX_DIR}/bx/include" />
+		<compilerflag value="-I${BGFX_DIR}/bimg/include" />
+
+		<file name="${BGFX_DIR}/project/bgfx_bridge.cpp" />
+	</files>
+
+	<target id="haxe">
+		<!-- ═══════════════ Windows x64 ═══════════════ -->
+		<section if="windows">
+			<lib name="${BGFX_DIR}/lib/windows/x64/bgfx.lib" if="HXCPP_M64" />
+			<lib name="${BGFX_DIR}/lib/windows/x64/bx.lib" if="HXCPP_M64" />
+			<lib name="${BGFX_DIR}/lib/windows/x64/bimg.lib" if="HXCPP_M64" />
+
+			<lib name="d3d11.lib" />
+			<lib name="d3d12.lib" />
+			<lib name="d3dcompiler.lib" />
+			<lib name="dxgi.lib" />
+			<lib name="dxguid.lib" />
+			<lib name="vulkan-1.lib" />
+			<lib name="opengl32.lib" />
+			<lib name="gdi32.lib" />
+			<lib name="kernel32.lib" />
+			<lib name="user32.lib" />
+			<lib name="shell32.lib" />
+			<lib name="ole32.lib" />
+			<lib name="advapi32.lib" />
+			<lib name="psapi.lib" />
+
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_DIRECT3D11=1" />
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_DIRECT3D12=1" />
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_VULKAN=1" />
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_OPENGL=1" />
+			<compilerflag value="-D__STDC_LIMIT_MACROS" />
+			<compilerflag value="-D__STDC_FORMAT_MACROS" />
+			<compilerflag value="-D__STDC_CONSTANT_MACROS" />
+			<lib name="SDL2.lib" />
+		</section>
+
+		<!-- ═══════════════ macOS ═══════════════ -->
+		<section if="mac">
+			<lib name="${BGFX_DIR}/lib/macos/libbgfx.a" />
+			<lib name="${BGFX_DIR}/lib/macos/libbx.a" />
+			<lib name="${BGFX_DIR}/lib/macos/libbimg.a" />
+
+			<vflag name="-framework" value="Metal" />
+			<vflag name="-framework" value="MetalKit" />
+			<vflag name="-framework" value="QuartzCore" />
+			<vflag name="-framework" value="Cocoa" />
+			<vflag name="-framework" value="IOKit" />
+			<vflag name="-framework" value="Foundation" />
+			<vflag name="-framework" value="CoreFoundation" />
+			<vflag name="-framework" value="SDL2" />
+			<vflag name="-framework" value="CoreVideo" />
+			<vflag name="-framework" value="OpenGL" />
+
+			<compilerflag value="-std=c++14" />
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_METAL=1" />
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_OPENGL=1" />
+			<compilerflag value="-D__STDC_LIMIT_MACROS" />
+			<compilerflag value="-D__STDC_FORMAT_MACROS" />
+			<compilerflag value="-D__STDC_CONSTANT_MACROS" />
+			<compilerflag value="-fobjc-arc" />
+		</section>
+
+		<!-- ═══════════════ Linux x64 ═══════════════ -->
+		<section if="linux">
+			<lib name="${BGFX_DIR}/lib/linux/x64/libbgfx.a" if="HXCPP_M64" />
+			<lib name="${BGFX_DIR}/lib/linux/x64/libbx.a" if="HXCPP_M64" />
+			<lib name="${BGFX_DIR}/lib/linux/x64/libbimg.a" if="HXCPP_M64" />
+
+			<lib name="-lX11" />
+			<lib name="-lXext" />
+			<lib name="-lvulkan" />
+			<lib name="-lGL" />
+			<lib name="-ldl" />
+			<lib name="-lpthread" />
+			<lib name="-lrt" />
+			<lib name="-ludev" />
+
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_VULKAN=1" />
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_OPENGL=1" />
+			<compilerflag value="-D__STDC_LIMIT_MACROS" />
+			<compilerflag value="-D__STDC_FORMAT_MACROS" />
+			<compilerflag value="-D__STDC_CONSTANT_MACROS" />
+
+			<lib name="-lSDL2" />
+		</section>
+	</target>
+</xml>
