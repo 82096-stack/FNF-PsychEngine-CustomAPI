@@ -52,7 +52,7 @@ haxelib run lime build windows
 | **hscript-iris** | 1.1.3 | `haxelib install hscript-iris 1.1.3` |
 | **tjson** | 1.4.0 | `haxelib install tjson 1.4.0` |
 | **hxdiscord_rpc** | 1.2.4 | `haxelib install hxdiscord_rpc 1.2.4` |
-| **hxvlc** | 2.0.1 | `haxelib install hxvlc 2.0.1 --skip-dependencies` |
+| **hxvlc** | 2.0.1 | `haxelib install hxvlc 2.0.1 --skip-dependencies`<br>ⓘ Also requires VLC (libvlc) installed on the system — see [hxvlc Setup](#hxvlc-video-playback) below |
 | **hxcpp** | 4.3.2 | `haxelib install hxcpp 4.3.2` |
 
 ### Git 包 / Git Packages
@@ -71,6 +71,103 @@ haxelib git linc_luajit https://github.com/superpowers04/linc_luajit 1906c4a96f6
 haxelib git funkin.vis https://github.com/FunkinCrew/funkVis 22b1ce089dd924f15cdc4632397ef3504d464e90
 haxelib git grig.audio https://gitlab.com/haxe-grig/grig.audio.git cbf91e2180fd2e374924fe74844086aab7891666
 ```
+
+---
+
+---
+
+## hxvlc Video Playback / 视频播放
+
+Psych Engine uses **hxvlc 2.0.1** (Haxe bindings for VLC/libvlc) for `.mp4` video playback in-game (`startVideo` / `VideoSprite`).
+
+### Runtime Dependency / 运行时依赖
+
+**hxvlc requires VLC (libvlc) to be installed on the target system at runtime.** Without VLC, video playback will silently fail — the `startVideo()` function returns `null` and no video is displayed.
+
+### Installation by Platform / 各平台安装
+
+#### macOS
+
+```bash
+brew install --cask vlc
+# Or download from https://www.videolan.org/vlc/
+```
+
+hxvlc automatically locates `libvlc.dylib` from `/Applications/VLC.app/Contents/MacOS/lib/`.
+
+#### Windows
+
+1. Download VLC from [videolan.org/vlc](https://www.videolan.org/vlc/)
+2. Install the **64-bit** version
+3. hxvlc automatically finds `libvlc.dll` from the VLC installation directory
+
+#### Linux
+
+```bash
+# Debian / Ubuntu
+sudo apt install libvlc-dev
+
+# Fedora
+sudo dnf install libvlc-devel
+
+# Arch
+sudo pacman -S vlc
+```
+
+### Haxelib Setup / Haxelib 安装
+
+```bash
+haxelib install hxvlc 2.0.1 --skip-dependencies
+```
+
+The `--skip-dependencies` flag is required because hxvlc lists VLC as a haxelib dependency, but VLC is a **system-level** runtime library, not a Haxe package.
+
+### Build Flags / 编译标志
+
+In `Project.xml`:
+
+```xml
+<!-- Enable video playback (macOS, Windows, Linux, Android; excludes 32-bit) -->
+<define name="VIDEOS_ALLOWED" if="windows || linux || android || mac" unless="32bits"/>
+
+<!-- hxvlc haxelib (required when VIDEOS_ALLOWED is enabled) -->
+<haxelib name="hxvlc" if="VIDEOS_ALLOWED" version="2.0.1"/>
+
+<!-- Optional: Enable VLC debug logging (debug builds only) -->
+<haxedef name="HXC_LIBVLC_LOGGING" if="VIDEOS_ALLOWED debug" />
+
+<!-- Recommended: Prevents hxvlc from searching for VLC plugins directory -->
+<haxedef name="HXVLC_NO_SHARE_DIRECTORY" if="VIDEOS_ALLOWED" />
+```
+
+### Usage in Mods / 在 Mod 中使用
+
+**Chart events (recommended):**
+Place a custom event named `playvideo` with the video filename (without `.mp4`) as Value 1.
+
+**Lua scripting:**
+```lua
+-- Direct call (preferred — uses Lua API with built-in file checks):
+startVideo("myCutscene")
+
+-- Or via raw Haxe:
+runHaxeCode([[
+    game.startVideo("myCutscene");
+]])
+```
+
+**Video files should be placed in:**
+- `mods/<yourMod>/videos/<name>.mp4` (mod-specific)
+- `assets/videos/<name>.mp4` (shared/fallback)
+
+### Troubleshooting / 故障排除
+
+| Symptom | Cause | Solution |
+|---|---|---|
+| Video doesn't play, no error | VLC not installed | Install VLC (see above) |
+| "Video not found" in debug | File path wrong | Check video is in `mods/<mod>/videos/` or `assets/videos/` |
+| Green/black screen instead of video | hxvlc can't find libvlc | Verify VLC installed; check library path |
+| Crash on video start | 32-bit build incompatible | Use 64-bit build (`VIDEOS_ALLOWED` excludes `32bits`) |
 
 ---
 

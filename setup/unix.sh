@@ -24,6 +24,40 @@ haxelib git grig.audio https://gitlab.com/haxe-grig/grig.audio.git cbf91e2180fd2
 # bgfx multi-API rendering backend
 haxelib dev hxbgfx libs/hxbgfx
 echo "  hxbgfx registered — run 'libs/hxbgfx/project/build_bgfx_libs.sh' to compile bgfx libraries"
+
+echo .
+echo -----------------------------------------------
+echo "hxvlc Video Playback — Installing VLC (libvlc) runtime dependency"
+echo -----------------------------------------------
+if [ "$(uname)" = "Darwin" ]; then
+	if [ -d "/Applications/VLC.app" ]; then
+		echo "  VLC already installed at /Applications/VLC.app"
+	elif command -v brew &> /dev/null; then
+		echo "  Installing VLC via Homebrew..."
+		brew install --cask vlc
+		echo "  VLC installed successfully"
+	else
+		echo "  Homebrew not found. Please install VLC manually:"
+		echo "    https://www.videolan.org/vlc/"
+		echo "  Or install Homebrew first:"
+		echo "    /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+	fi
+elif [ "$(uname)" = "Linux" ]; then
+	if command -v apt &> /dev/null; then
+		echo "  Installing libvlc-dev via apt..."
+		sudo apt install -y libvlc-dev
+	elif command -v dnf &> /dev/null; then
+		echo "  Installing libvlc-devel via dnf..."
+		sudo dnf install -y libvlc-devel
+	elif command -v pacman &> /dev/null; then
+		echo "  Installing vlc via pacman..."
+		sudo pacman -S --noconfirm vlc
+	else
+		echo "  Could not detect package manager. Please install VLC / libvlc-dev manually."
+	fi
+fi
+echo "  hxvlc version: 2.0.1"
+echo "  VLC/libvlc is required at runtime for video playback (startVideo)."
 echo Finished!
 echo .
 echo -----------------------------------------------

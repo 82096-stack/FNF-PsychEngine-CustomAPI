@@ -23,6 +23,18 @@ haxelib dev hxbgfx libs/hxbgfx
 echo Finished!
 echo.
 echo -----------------------------------------------
+echo hxvlc Video Playback - VLC (libvlc) Runtime Dependency
+echo -----------------------------------------------
+echo   hxvlc version: 2.0.1
+echo   hxvlc requires VLC to be installed on the system for video playback.
+echo   Download VLC from: https://www.videolan.org/vlc/
+echo   Make sure to install the 64-bit version matching your system.
+echo.
+echo   After installing VLC, hxvlc will automatically find libvlc.dll
+echo   from the VLC installation directory.
+echo -----------------------------------------------
+echo.
+echo -----------------------------------------------
 echo Graphics Rendering - bgfx multi-backend (default):
 echo   Build:  haxelib run lime build windows
 echo.
