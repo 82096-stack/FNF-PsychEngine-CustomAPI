@@ -1,42 +1,55 @@
 package objects;
 
 import flixel.addons.display.FlxPieDial;
-
-#if hxvlc
-import hxvlc.flixel.FlxVideoSprite;
-#end
+import flixel.FlxSprite;
+import flixel.FlxG;
+import flixel.util.FlxColor;
+import flixel.math.FlxMath;
+import ffmpeg.FFmpegVideoDecoder;
+import ffmpeg.VideoTexture;
+import ffmpeg.VideoSprite as FFmpegVideoSprite;
 
 /**
- * VideoSprite — bgfx-compatible video wrapper.
+ * VideoSprite — BGGFX-compatible video wrapper for Psych Engine.
  *
- * Previously, hxvlc's FlxVideoSprite added the raw Video Bitmap to the
- * OpenFL display tree (FlxG.game.addChild), bypassing flixel's draw
- * stack and the bgfx pipeline.
+ * Fully replaces the hxvlc-based video system with a native FFmpeg backend.
+ * No external players (VLC, system codecs) required — FFmpeg is statically
+ * linked or bundled with the game.
  *
- * Now the video bitmap is removed from the OpenFL tree immediately after
- * creation, and each frame's bitmapData is re-loaded into the FlxSprite
- * graphic so video frames render through the bgfx draw stack.
+ * = Architecture =
+ *   FFmpegVideoDecoder (native C++ decode thread)
+ *        │ YUV → RGBA via swscale
+ *        ▼
+ *   ffmpeg.VideoSprite  (FlxSprite with BitmapData + BGFX texture)
+ *        │
+ *        ▼
+ *   objects.VideoSprite (FlxSpriteGroup wrapper with skip UI + callbacks)
+ *
+ * = Backward Compatible API =
+ *   Same constructor and method signatures as the hxvlc version:
+ *     new VideoSprite(path, isWaiting, canSkip, shouldLoop)
+ *     video.play() / .pause() / .resume()
+ *     video.finishCallback / video.onSkip
+ *     video.canSkip / video.holdingTime
  */
-class VideoSprite extends FlxSpriteGroup {
+class VideoSprite extends FlxSpriteGroup
+{
 	#if VIDEOS_ALLOWED
 	public var finishCallback:Void->Void = null;
 	public var onSkip:Void->Void = null;
 
 	final _timeToSkip:Float = 1;
 	public var holdingTime:Float = 0;
-	public var videoSprite:FlxVideoSprite;
+	public var videoSprite:FFmpegVideoSprite; // The actual FFmpeg-backed video display
 	public var skipSprite:FlxPieDial;
 	public var cover:FlxSprite;
 	public var canSkip(default, set):Bool = false;
 
 	private var videoName:String;
-
 	public var waiting:Bool = false;
 
-	/** Track the last bitmapData for bgfx texture re-upload. */
-	var _lastBitmapData:openfl.display.BitmapData = null;
-
-	public function new(videoName:String, isWaiting:Bool, canSkip:Bool = false, shouldLoop:Dynamic = false) {
+	public function new(videoName:String, isWaiting:Bool, canSkip:Bool = false, shouldLoop:Dynamic = false)
+	{
 		super();
 
 		this.videoName = videoName;
@@ -44,7 +57,7 @@ class VideoSprite extends FlxSpriteGroup {
 		cameras = [FlxG.cameras.list[FlxG.cameras.list.length - 1]];
 
 		waiting = isWaiting;
-		if(!waiting)
+		if (!waiting)
 		{
 			cover = new FlxSprite().makeGraphic(1, 1, FlxColor.BLACK);
 			cover.scale.set(FlxG.width + 100, FlxG.height + 100);
@@ -53,40 +66,37 @@ class VideoSprite extends FlxSpriteGroup {
 			add(cover);
 		}
 
-		// initialize sprites
-		videoSprite = new FlxVideoSprite();
+		// Create the FFmpeg-backed video sprite
+		videoSprite = new FFmpegVideoSprite(videoName, shouldLoop == true, false);
 		videoSprite.antialiasing = ClientPrefs.data.antialiasing;
 		add(videoSprite);
-		if(canSkip) this.canSkip = true;
 
-		// callbacks
-		if(!shouldLoop) videoSprite.bitmap.onEndReached.add(finishVideo);
+		if (canSkip)
+			this.canSkip = true;
 
-		videoSprite.bitmap.onFormatSetup.add(function()
+		// Wire up format setup callback
+		videoSprite.onFormatSetup = function()
 		{
 			videoSprite.setGraphicSize(FlxG.width);
 			videoSprite.updateHitbox();
 			videoSprite.screenCenter();
+		};
 
-			// Remove the raw Video Bitmap from OpenFL display tree so it
-			// doesn't bypass the flixel draw stack / bgfx pipeline.
-			// Video frames will be updated via updateBgfxTexture() instead.
-			if (FlxG.game.contains(videoSprite.bitmap))
-				FlxG.game.removeChild(videoSprite.bitmap);
-		});
-
-		// start video and adjust resolution to screen size
-		videoSprite.load(videoName, shouldLoop ? ['input-repeat=65545'] : null);
+		// Wire up end-of-video callback
+		if (shouldLoop != true)
+		{
+			videoSprite.finishCallback = finishVideo;
+		}
 	}
 
 	var alreadyDestroyed:Bool = false;
+
 	override function destroy()
 	{
-		if(alreadyDestroyed)
-			return;
+		if (alreadyDestroyed) return;
 
 		trace('Video destroyed');
-		if(cover != null)
+		if (cover != null)
 		{
 			remove(cover);
 			cover.destroy();
@@ -95,33 +105,35 @@ class VideoSprite extends FlxSpriteGroup {
 		finishCallback = null;
 		onSkip = null;
 
-		if(FlxG.state != null)
+		if (FlxG.state != null)
 		{
-			if(FlxG.state.members.contains(this))
+			if (FlxG.state.members.contains(this))
 				FlxG.state.remove(this);
 
-			if(FlxG.state.subState != null && FlxG.state.subState.members.contains(this))
+			if (FlxG.state.subState != null && FlxG.state.subState.members.contains(this))
 				FlxG.state.subState.remove(this);
 		}
+
 		super.destroy();
 		alreadyDestroyed = true;
 	}
+
 	function finishVideo()
 	{
 		if (!alreadyDestroyed)
 		{
-			if(finishCallback != null)
+			if (finishCallback != null)
 				finishCallback();
-
 			destroy();
 		}
 	}
 
 	override function update(elapsed:Float)
 	{
-		if(canSkip)
+		// Skip logic
+		if (canSkip)
 		{
-			if(Controls.instance.pressed('accept'))
+			if (Controls.instance.pressed('accept'))
 			{
 				holdingTime = Math.max(0, Math.min(_timeToSkip, holdingTime + elapsed));
 			}
@@ -131,56 +143,25 @@ class VideoSprite extends FlxSpriteGroup {
 			}
 			updateSkipAlpha();
 
-			if(holdingTime >= _timeToSkip)
+			if (holdingTime >= _timeToSkip)
 			{
-				if(onSkip != null) onSkip();
+				if (onSkip != null) onSkip();
 				finishCallback = null;
-				videoSprite.bitmap.onEndReached.dispatch();
+				finishVideo();
 				trace('Skipped video');
 				return;
 			}
 		}
+
 		super.update(elapsed);
-
-		// Re-upload video frame to bgfx texture every 2 frames
-		// (every frame would be ideal but 2-frame cadence reduces overhead
-		//  while still maintaining 30fps texture update for 60fps video)
-		updateBgfxTexture();
 	}
 
-	/**
-	 * Copy the current video frame into the FlxSprite's graphic so it
-	 * renders through the bgfx draw stack instead of via raw OpenFL.
-	 */
-	function updateBgfxTexture():Void
-	{
-		var bmp = videoSprite.bitmap.bitmapData;
-		if (bmp == null) return;
-
-		// Only update when bitmapData changes (new frame decoded by hxvlc)
-		if (bmp == _lastBitmapData) return;
-		_lastBitmapData = bmp;
-
-		// Ensure the sprite has a graphic before updating its texture
-		if (videoSprite.graphic == null || videoSprite.graphic.bitmap != bmp)
-		{
-			videoSprite.loadGraphic(flixel.graphics.FlxGraphic.fromBitmapData(bmp, false, null, false));
-		}
-
-		// Update bgfx texture in-place using the graphic's cache key.
-		// BgfxTextureManager.updateTexture() disposes the old GPU texture
-		// and uploads the new frame, avoiding per-frame FlxGraphic allocation.
-		var key = videoSprite.graphic.key;
-		if (key != null && key.length > 0)
-			backend.BgfxTextureManager.updateTexture(key, bmp);
-	}
-
-	function set_canSkip(newValue:Bool)
+	function set_canSkip(newValue:Bool):Bool
 	{
 		canSkip = newValue;
-		if(canSkip)
+		if (canSkip)
 		{
-			if(skipSprite == null)
+			if (skipSprite == null)
 			{
 				skipSprite = new FlxPieDial(0, 0, 40, FlxColor.WHITE, 40, true, 24);
 				skipSprite.replaceColor(FlxColor.BLACK, FlxColor.TRANSPARENT);
@@ -190,7 +171,7 @@ class VideoSprite extends FlxSpriteGroup {
 				add(skipSprite);
 			}
 		}
-		else if(skipSprite != null)
+		else if (skipSprite != null)
 		{
 			remove(skipSprite);
 			skipSprite.destroy();
@@ -201,14 +182,25 @@ class VideoSprite extends FlxSpriteGroup {
 
 	function updateSkipAlpha()
 	{
-		if(skipSprite == null) return;
-
+		if (skipSprite == null) return;
 		skipSprite.amount = Math.min(1, Math.max(0, (holdingTime / _timeToSkip) * 1.025));
 		skipSprite.alpha = FlxMath.remapToRange(skipSprite.amount, 0.025, 1, 0, 1);
 	}
 
-	public function play() videoSprite?.play();
-	public function resume() videoSprite?.resume();
-	public function pause() videoSprite?.pause();
+	// ── Playback controls (delegated to FFmpegVideoSprite) ──────
+
+	public function play():Void   { videoSprite?.play(); }
+	public function resume():Void { videoSprite?.resume(); }
+	public function pause():Void  { videoSprite?.pause(); }
+
+	/** Seek to a specific time position in seconds. */
+	public function seek(seconds:Float):Void { videoSprite?.seek(seconds); }
+
+	/** Get current playback position in seconds. */
+	public function getCurrentTime():Float { return videoSprite != null ? videoSprite.getCurrentTime() : 0.0; }
+
+	/** Get total video duration in seconds. */
+	public function getDuration():Float { return videoSprite != null ? videoSprite.getDuration() : 0.0; }
+
 	#end
 }

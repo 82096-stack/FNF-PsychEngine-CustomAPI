@@ -679,7 +679,8 @@ class PlayState extends MusicBeatState
 		Conductor.offset = Reflect.hasField(PlayState.SONG, 'offset') ? (PlayState.SONG.offset / value) : 0;
 		Conductor.safeZoneOffset = (ClientPrefs.data.safeFrames / 60) * 1000 * value;
 		#if VIDEOS_ALLOWED
-		if(videoCutscene != null && videoCutscene.videoSprite != null) videoCutscene.videoSprite.bitmap.rate = value;
+		// FFmpeg: playback rate sync for mid-song video. Set via videoSprite.setPlaybackRate().
+			if(videoCutscene != null && videoCutscene.videoSprite != null) { /* TODO: videoCutscene.videoSprite.setPlaybackRate(value); */ }
 		#end
 		setOnScripts('playbackRate', playbackRate);
 		#else
@@ -846,7 +847,7 @@ class PlayState extends MusicBeatState
 		if (foundFile)
 		{
 			videoCutscene = new VideoSprite(fileName, forMidSong, canSkip, loop);
-			if(forMidSong) videoCutscene.videoSprite.bitmap.rate = playbackRate;
+			if(forMidSong) /* FFmpeg: video plays at 1×. For rate sync, extend VideoSprite.setPlaybackRate() */
 
 			// Finish callback
 			if (!forMidSong)

@@ -1,0 +1,113 @@
+<!--
+	FFmpeg Build.xml — hxcpp build configuration for FFmpeg video decoding.
+
+	Included from Project.xml via:
+	  <include name="libs/ffmpeg/project/Build.xml" if="VIDEOS_ALLOWED" />
+
+	Prebuilt static library paths (relative to project root):
+	  libs/ffmpeg/lib/windows/x64/avcodec.lib, avformat.lib, avutil.lib, swscale.lib, swresample.lib
+	  libs/ffmpeg/lib/linux/x64/libavcodec.a, libavformat.a, libavutil.a, libswscale.a, libswresample.a
+	  libs/ffmpeg/lib/macos/libavcodec.a, libavformat.a, libavutil.a, libswscale.a, libswresample.a
+
+	Header paths:
+	  libs/ffmpeg/include/  (populated by build_ffmpeg_libs.sh)
+
+	Source files:
+	  source/ffmpeg/VideoDecoder.cpp  (native FFmpeg bridge)
+-->
+<xml>
+	<pragma once="true" />
+
+	<set name="FFMPEG_DIR" value="libs/ffmpeg" />
+
+	<!-- Source files -->
+	<files id="haxe">
+		<!-- Project source/include for native bridge headers (source/ffmpeg/VideoDecoder.h).
+		     hxcpp runs the C++ compiler from the obj/ directory (e.g. export/release/macos/obj/),
+		     so relative paths must go up 4 levels to reach the project root. -->
+		<compilerflag value="-I../../../../source" />
+		<compilerflag value="-I../../../../include" />
+		<!-- FFmpeg headers (installed by build_ffmpeg_libs.sh) -->
+		<compilerflag value="-I${FFMPEG_DIR}/include" if="FFMPEG_LOCAL_INCLUDE" />
+
+		<!-- Use pkg-config on Linux when using system FFmpeg -->
+		<section if="linux &amp;&amp; FFMPEG_SYSTEM">
+			<compilerflag value="`pkg-config --cflags libavcodec libavformat libavutil libswscale libswresample`" />
+		</section>
+
+		<!-- Native decoder bridge (paths relative to obj/ at C++ compile time) -->
+		<file name="../../../../source/ffmpeg/VideoDecoder.cpp" />
+	</files>
+
+	<target id="haxe">
+		<!-- ═══════════════ Windows x64 ═══════════════ -->
+		<section if="windows">
+			<lib name="${FFMPEG_DIR}/lib/windows/x64/avcodec.lib" />
+			<lib name="${FFMPEG_DIR}/lib/windows/x64/avformat.lib" />
+			<lib name="${FFMPEG_DIR}/lib/windows/x64/avutil.lib" />
+			<lib name="${FFMPEG_DIR}/lib/windows/x64/swscale.lib" />
+			<lib name="${FFMPEG_DIR}/lib/windows/x64/swresample.lib" />
+
+			<!-- FFmpeg dependencies on Windows -->
+			<lib name="bcrypt.lib" />
+			<lib name="ws2_32.lib" />
+			<lib name="secur32.lib" />
+
+			<compilerflag value="-D__STDC_LIMIT_MACROS" />
+			<compilerflag value="-D__STDC_FORMAT_MACROS" />
+			<compilerflag value="-D__STDC_CONSTANT_MACROS" />
+		</section>
+
+		<!-- ═══════════════ macOS ═══════════════ -->
+		<section if="mac">
+			<lib name="${FFMPEG_DIR}/lib/macos/libavcodec.a" />
+			<lib name="${FFMPEG_DIR}/lib/macos/libavformat.a" />
+			<lib name="${FFMPEG_DIR}/lib/macos/libavutil.a" />
+			<lib name="${FFMPEG_DIR}/lib/macos/libswscale.a" />
+			<lib name="${FFMPEG_DIR}/lib/macos/libswresample.a" />
+			<lib name="${FFMPEG_DIR}/lib/macos/libVideoDecoder_ffmpeg.a" />
+
+			<!-- FFmpeg dependencies on macOS -->
+			<vflag name="-framework" value="CoreFoundation" />
+			<vflag name="-framework" value="CoreMedia" />
+			<vflag name="-framework" value="CoreVideo" />
+			<vflag name="-framework" value="VideoToolbox" />
+			<vflag name="-framework" value="Security" />
+			<vflag name="-framework" value="CoreServices" />
+			<vflag name="-framework" value="AudioToolbox" />
+
+			<lib name="bz2" />
+			<lib name="iconv" />
+			<lib name="z" />
+
+			<compilerflag value="-std=c++14" />
+			<compilerflag value="-D__STDC_LIMIT_MACROS" />
+			<compilerflag value="-D__STDC_FORMAT_MACROS" />
+			<compilerflag value="-D__STDC_CONSTANT_MACROS" />
+		</section>
+
+		<!-- ═══════════════ Linux x64 ═══════════════ -->
+		<section if="linux">
+			<!-- Static FFmpeg (bundled) -->
+			<section if="FFMPEG_BUNDLED">
+				<lib name="${FFMPEG_DIR}/lib/linux/x64/libavcodec.a" />
+				<lib name="${FFMPEG_DIR}/lib/linux/x64/libavformat.a" />
+				<lib name="${FFMPEG_DIR}/lib/linux/x64/libavutil.a" />
+				<lib name="${FFMPEG_DIR}/lib/linux/x64/libswscale.a" />
+				<lib name="${FFMPEG_DIR}/lib/linux/x64/libswresample.a" />
+			</section>
+
+			<!-- System FFmpeg (via pkg-config) -->
+			<section unless="FFMPEG_BUNDLED">
+				<compilerflag value="`pkg-config --cflags libavcodec libavformat libavutil libswscale libswresample`" />
+				<linkerflag value="`pkg-config --libs libavcodec libavformat libavutil libswscale libswresample`" />
+			</section>
+
+			<!-- FFmpeg dependencies -->
+			<lib name="-lpthread" />
+			<lib name="-lm" />
+			<lib name="-lz" />
+			<lib name="-ldl" />
+		</section>
+	</target>
+</xml>

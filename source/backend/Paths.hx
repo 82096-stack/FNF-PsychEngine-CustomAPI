@@ -27,7 +27,8 @@ import backend.Mods;
 class Paths
 {
 	inline public static var SOUND_EXT = #if web "mp3" #else "ogg" #end;
-	inline public static var VIDEO_EXT = "mp4";
+	/** Supported video extensions (checked in order: mp4 first, then webm). */
+	public static var VIDEO_EXT = ["mp4", "webm"];
 
 	public static function excludeAsset(key:String) {
 		if (!dumpExclusions.contains(key))
@@ -202,7 +203,14 @@ class Paths
 		var file:String = modsVideo(key);
 		if(FileSystem.exists(file)) return file;
 		#end
-		return 'assets/videos/$key.$VIDEO_EXT';
+		// Try each supported video extension
+			for (ext in VIDEO_EXT)
+			{
+				var path = 'assets/videos/$key.$ext';
+				if (FileSystem.exists(path)) return path;
+			}
+			// Default to mp4 (backward compatible)
+			return 'assets/videos/$key.mp4';
 	}
 
 	inline static public function sound(key:String, ?modsAllowed:Bool = true):Sound
@@ -453,8 +461,15 @@ class Paths
 	inline static public function modsJson(key:String)
 		return modFolders('data/' + key + '.json');
 
-	inline static public function modsVideo(key:String)
-		return modFolders('videos/' + key + '.' + VIDEO_EXT);
+	static public function modsVideo(key:String) {
+		// Try each supported video extension in mod folders
+			for (ext in VIDEO_EXT)
+			{
+				var path = modFolders('videos/$key.$ext');
+				if (FileSystem.exists(path)) return path;
+			}
+			return modFolders('videos/$key.mp4');
+	}
 
 	inline static public function modsSounds(path:String, key:String)
 		return modFolders(path + '/' + key + '.' + SOUND_EXT);

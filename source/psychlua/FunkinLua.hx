@@ -1314,6 +1314,25 @@ class FunkinLua {
 		});
 
 		Lua_helper.add_callback(lua, "playMusic", function(sound:String, ?volume:Float = 1, ?loop:Bool = false) {
+			// ── FFmpeg video metadata ──
+			Lua_helper.add_callback(lua, "getVideoTime", function() {
+				#if VIDEOS_ALLOWED
+				if (game.videoCutscene != null) return game.videoCutscene.getCurrentTime();
+				#end
+				return 0.0;
+			});
+			Lua_helper.add_callback(lua, "getVideoDuration", function() {
+				#if VIDEOS_ALLOWED
+				if (game.videoCutscene != null) return game.videoCutscene.getDuration();
+				#end
+				return 0.0;
+			});
+			Lua_helper.add_callback(lua, "seekVideo", function(seconds:Float) {
+				#if VIDEOS_ALLOWED
+				if (game.videoCutscene != null) game.videoCutscene.seek(seconds);
+				#end
+			});
+
 			FlxG.sound.playMusic(Paths.music(sound), volume, loop);
 		});
 		Lua_helper.add_callback(lua, "playSound", function(sound:String, ?volume:Float = 1, ?tag:String = null, ?loop:Bool = false) {

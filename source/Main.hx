@@ -87,7 +87,9 @@ class Main extends Sprite
 		Sys.setCwd(lime.system.System.applicationStorageDirectory);
 		#end
 		#if VIDEOS_ALLOWED
-		hxvlc.util.Handle.init(#if (hxvlc >= "1.8.0")  ['--no-lua'] #end);
+		// FFmpeg video decoder — initialized lazily on first video open.
+		// Native bridge: source/ffmpeg/VideoDecoder.cpp (linked via libs/ffmpeg/project/Build.xml)
+		ffmpeg.FFmpegVideoDecoder; // force Haxe compilation of the CFFI bridge
 		#end
 
 		#if LUA_ALLOWED
