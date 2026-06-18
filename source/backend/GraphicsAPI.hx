@@ -7,7 +7,7 @@ import lime.system.DisplayMode;
 /**
  * Graphics Rendering API abstraction layer.
  *
- * Powered by bgfx — all four backends (Metal, Vulkan, DirectX 12, OpenGL)
+ * Powered by bgfx — all six backends (Metal, Vulkan, DirectX 12/11/9, OpenGL)
  * are compiled into a single binary and switchable at runtime.
  */
 class GraphicsAPI
@@ -26,6 +26,8 @@ class GraphicsAPI
 		if (apis.length == 0) return OpenGL;
 		if (apis.contains(Metal)) return Metal;
 		if (apis.contains(DirectX12)) return DirectX12;
+		if (apis.contains(DirectX11)) return DirectX11;
+		if (apis.contains(DirectX9)) return DirectX9;
 		if (apis.contains(Vulkan)) return Vulkan;
 		return OpenGL;
 	}
@@ -34,6 +36,10 @@ class GraphicsAPI
 	{
 		#if GRAPHICS_API_DIRECTX12
 		return DirectX12;
+		#elseif GRAPHICS_API_DIRECTX11
+		return DirectX11;
+		#elseif GRAPHICS_API_DIRECTX9
+		return DirectX9;
 		#elseif GRAPHICS_API_VULKAN
 		return Vulkan;
 		#elseif GRAPHICS_API_METAL

@@ -30,6 +30,7 @@
 			<lib name="${BGFX_DIR}/lib/windows/x64/bx.lib" if="HXCPP_M64" />
 			<lib name="${BGFX_DIR}/lib/windows/x64/bimg.lib" if="HXCPP_M64" />
 
+			<lib name="d3d9.lib" />
 			<lib name="d3d11.lib" />
 			<lib name="d3d12.lib" />
 			<lib name="d3dcompiler.lib" />
@@ -45,6 +46,7 @@
 			<lib name="advapi32.lib" />
 			<lib name="psapi.lib" />
 
+			<compilerflag value="-DBGFX_CONFIG_RENDERER_DIRECT3D9=1" />
 			<compilerflag value="-DBGFX_CONFIG_RENDERER_DIRECT3D11=1" />
 			<compilerflag value="-DBGFX_CONFIG_RENDERER_DIRECT3D12=1" />
 			<compilerflag value="-DBGFX_CONFIG_RENDERER_VULKAN=1" />

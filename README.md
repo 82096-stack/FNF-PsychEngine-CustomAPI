@@ -1,6 +1,6 @@
 ![PsychEngineLogo](docs/img/Logo.png)
 
-**Friday Night Funkin': Psych Engine** — A feature-rich FNF modding engine with multi-API rendering support (Metal, Vulkan, DirectX 12, OpenGL) and native FFmpeg video playback.
+**Friday Night Funkin': Psych Engine** — A feature-rich FNF modding engine with multi-API rendering support (Metal, Vulkan, DirectX 12/11/9, OpenGL) and native FFmpeg video playback.
 
 ---
 
@@ -179,7 +179,7 @@ Place a custom event named `playvideo` with the video filename (without extensio
 ├──────────────────────────────────────────────────────┤
 │  FFmpeg (libavcodec / libavformat / libswscale)      │
 ├──────────────────────────────────────────────────────┤
-│  BGFX (DirectX 12 / Metal / Vulkan / OpenGL)         │
+│  BGFX (DirectX 12/11/9 / Metal / Vulkan / OpenGL)    │
 │    BgfxTextureManager → GPU texture → FlxSprite      │
 └──────────────────────────────────────────────────────┘
 ```
@@ -189,7 +189,7 @@ Place a custom event named `playvideo` with the video filename (without extensio
 - **零拷贝帧传输** — RGBA 帧直接写入复用 `BitmapData`，无额外分配
 - **BGFX 纹理复用** — 同一 `FlxGraphic` 全程复用，仅每帧更新 GPU 纹理
 - **自动资源回收** — `destroy()` 自动停止解码线程并释放所有 FFmpeg 资源
-- **跨平台** — Windows (DirectX 12), macOS (Metal), Linux (Vulkan) 全支持
+- **跨平台** — Windows (DirectX 12/11/9, Vulkan), macOS (Metal), Linux (Vulkan) 全支持
 
 ### 故障排除 / Troubleshooting
 
@@ -226,7 +226,7 @@ bash build_bgfx_libs.sh
 | 平台 / Platform | 可选 API / Available APIs | 默认 / Default |
 |---|---|---|
 | **macOS** | Metal, OpenGL | Metal |
-| **Windows** | DirectX 12, Vulkan, OpenGL | DirectX 12 |
+| **Windows** | DirectX 12, DirectX 11, DirectX 9, Vulkan, OpenGL | DirectX 12 |
 | **Linux** | Vulkan, OpenGL | Vulkan |
 
 ---
@@ -304,6 +304,8 @@ FNF-PsychEngine-CustomAPI/
 <!-- -D GRAPHICS_API_METAL     强制 Metal -->
 <!-- -D GRAPHICS_API_VULKAN    强制 Vulkan -->
 <!-- -D GRAPHICS_API_DIRECTX12 强制 DirectX 12 -->
+<!-- -D GRAPHICS_API_DIRECTX11 强制 DirectX 11 -->
+<!-- -D GRAPHICS_API_DIRECTX9  强制 DirectX 9 -->
 ```
 
 在游戏设置中（运行时切换，即时生效）：
@@ -311,7 +313,7 @@ FNF-PsychEngine-CustomAPI/
 ```
 Options → Graphics → Graphics Rendering API
   - Auto (平台最佳)
-  - Metal / DirectX 12 / Vulkan
+  - Metal / DirectX 12 / DirectX 11 / DirectX 9 / Vulkan
   - OpenGL
 ```
 

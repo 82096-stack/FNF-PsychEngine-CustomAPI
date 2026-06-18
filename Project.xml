@@ -60,7 +60,7 @@
 	<!--Mobile-specific-->
 	<window if="mobile" orientation="landscape" fullscreen="true" width="0" height="0" resizable="false"/>
 
-	<!-- bgfx multi-API rendering backend (Metal, Vulkan, D3D12, OpenGL) -->
+	<!-- bgfx multi-API rendering backend (Metal, Vulkan, D3D12/11/9, OpenGL) -->
 	<!-- Always enabled — this is the default rendering path -->
 	<define name="BGFX_RENDERER" />
 
@@ -68,6 +68,12 @@
 	<!-- Without these, bgfx auto-detects the best API at runtime -->
 	<section if="GRAPHICS_API_DIRECTX12">
 		<haxedef name="GRAPHICS_API_DIRECTX12" />
+	</section>
+	<section if="GRAPHICS_API_DIRECTX11">
+		<haxedef name="GRAPHICS_API_DIRECTX11" />
+	</section>
+	<section if="GRAPHICS_API_DIRECTX9">
+		<haxedef name="GRAPHICS_API_DIRECTX9" />
 	</section>
 	<section if="GRAPHICS_API_VULKAN">
 		<haxedef name="GRAPHICS_API_VULKAN" />

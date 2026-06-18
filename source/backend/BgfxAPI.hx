@@ -119,7 +119,7 @@ class BgfxAPI
 		#if mac
 		return (1 << 5) | (1 << 8); // Metal + OpenGL
 		#elseif windows
-		return (1 << 3) | (1 << 9) | (1 << 8); // D3D12 + Vulkan + OpenGL
+		return (1 << 1) | (1 << 2) | (1 << 3) | (1 << 9) | (1 << 8); // D3D9 + D3D11 + D3D12 + Vulkan + OpenGL
 		#elseif linux
 		return (1 << 9) | (1 << 8); // Vulkan + OpenGL
 		#else

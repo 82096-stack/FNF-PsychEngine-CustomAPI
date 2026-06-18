@@ -4,7 +4,7 @@ import flixel.FlxG;
 import openfl.display.BlendMode;
 
 // Inline bgfx types
-enum abstract BgfxRendererType(Int) to Int { var B_Noop=0; var B_Direct3D11=2; var B_Direct3D12=3; var B_Metal=5; var B_OpenGLES=7; var B_OpenGL=8; var B_Vulkan=9; }
+enum abstract BgfxRendererType(Int) to Int { var B_Noop=0; var B_Direct3D9=1; var B_Direct3D11=2; var B_Direct3D12=3; var B_Metal=5; var B_OpenGLES=7; var B_OpenGL=8; var B_Vulkan=9; }
 enum abstract BgfxTextureFormat(Int) to Int { var Unknown=34; var BGRA8=66; var RGBA8=67; }
 enum abstract BgfxResetFlags(Int) to Int { var None=0; var VSync=0x0080; var FlipAfterRender=0x0800; var HiDPI=0x4000; }
 enum abstract BgfxClearFlags(Int) to Int { var None5=0; var Color0=1; var Depth=2; var Stencil=4; }
@@ -256,6 +256,8 @@ class RenderDevice
 		if ((s & (1 << B_OpenGL)) != 0) a.push(OpenGL);
 		if ((s & (1 << B_Vulkan)) != 0) a.push(Vulkan);
 		if ((s & (1 << B_Direct3D12)) != 0) a.push(DirectX12);
+		if ((s & (1 << B_Direct3D11)) != 0) a.push(DirectX11);
+		if ((s & (1 << B_Direct3D9)) != 0) a.push(DirectX9);
 		if ((s & (1 << B_Metal)) != 0) a.push(Metal);
 		return a;
 	}
@@ -266,6 +268,8 @@ class RenderDevice
 			case Metal: B_Metal;
 			case Vulkan: B_Vulkan;
 			case DirectX12: B_Direct3D12;
+			case DirectX11: B_Direct3D11;
+			case DirectX9: B_Direct3D9;
 			default: B_OpenGL;
 		}
 	}
