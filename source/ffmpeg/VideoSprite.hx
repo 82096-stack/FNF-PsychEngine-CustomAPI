@@ -135,6 +135,7 @@ class VideoSprite extends FlxSprite
 		{
 			trace('[VideoSprite] Failed to load video: $path');
 			visible = false;
+			alive = false; // prevent FlxGroup from updating/drawing
 			return;
 		}
 
