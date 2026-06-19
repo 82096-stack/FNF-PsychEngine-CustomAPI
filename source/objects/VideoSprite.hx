@@ -130,6 +130,8 @@ class VideoSprite extends FlxSpriteGroup
 
 	override function update(elapsed:Float)
 	{
+		if (alreadyDestroyed) return;
+
 		// Skip logic
 		if (canSkip)
 		{
@@ -153,6 +155,7 @@ class VideoSprite extends FlxSpriteGroup
 			}
 		}
 
+		if (alreadyDestroyed) return;
 		super.update(elapsed);
 	}
 

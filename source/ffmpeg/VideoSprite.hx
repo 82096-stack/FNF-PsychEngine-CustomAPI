@@ -318,6 +318,8 @@ class VideoSprite extends FlxSprite
 
 	override function update(elapsed:Float):Void
 	{
+		if (_alreadyDestroyed) return;
+
 		// Handle skip logic
 		updateSkip(elapsed);
 
@@ -327,18 +329,21 @@ class VideoSprite extends FlxSprite
 			return;
 		}
 
-		// Update decoder (polls for new frames from decode thread)
+		// Update decoder (polls for new frames from decode thread).
+		// NOTE: decoder.onEndReached may fire inside this call and trigger
+		// finishCallback → destroy(), so check _alreadyDestroyed after.
 		decoder.update(elapsed);
 
-		// Upload new frame to BGFX texture if available
-		if (decoder.frameChanged)
-		{
-			if (videoTexture != null)
-				videoTexture.updateFrame();
+		if (_alreadyDestroyed) return;
 
+		// Upload new frame to BGFX texture if available
+		if (decoder.frameChanged && videoTexture != null)
+		{
+			videoTexture.updateFrame();
 			_firstFrame = false;
 		}
 
+		if (_alreadyDestroyed) return;
 		super.update(elapsed);
 	}
 
