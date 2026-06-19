@@ -61,11 +61,50 @@ extern "C" {
 }
 ')
 @:buildXml('
-<compilerflag value="-I../../../../source" />
-<compilerflag value="-I../../../../include" />
-<file name="../../../../source/ffmpeg/VideoDecoder.cpp" />
+<files id="haxe">
+	<compilerflag value="-I../../../../source" />
+	<compilerflag value="-I../../../../libs/ffmpeg/include"  />
+	<file name="../../../../source/ffmpeg/VideoDecoder.cpp" />
+</files>
 <target id="haxe">
-	<lib name="../../../../libs/ffmpeg/lib/macos/libVideoDecoder.a" />
+	<section if="mac">
+		<lib name="../../../../libs/ffmpeg/lib/macos/libavcodec.a" />
+		<lib name="../../../../libs/ffmpeg/lib/macos/libavformat.a" />
+		<lib name="../../../../libs/ffmpeg/lib/macos/libavutil.a" />
+		<lib name="../../../../libs/ffmpeg/lib/macos/libswscale.a" />
+		<lib name="../../../../libs/ffmpeg/lib/macos/libswresample.a" />
+		<vflag name="-framework" value="CoreFoundation" />
+		<vflag name="-framework" value="CoreMedia" />
+		<vflag name="-framework" value="CoreVideo" />
+		<vflag name="-framework" value="VideoToolbox" />
+		<vflag name="-framework" value="Security" />
+		<vflag name="-framework" value="CoreServices" />
+		<vflag name="-framework" value="AudioToolbox" />
+		<lib name="-lbz2" />
+		<lib name="-liconv" />
+		<lib name="-lz" />
+		<compilerflag value="-std=c++14" />
+	</section>
+	<section if="windows">
+		<lib name="../../../../libs/ffmpeg/lib/windows/x64/avcodec.lib" />
+		<lib name="../../../../libs/ffmpeg/lib/windows/x64/avformat.lib" />
+		<lib name="../../../../libs/ffmpeg/lib/windows/x64/avutil.lib" />
+		<lib name="../../../../libs/ffmpeg/lib/windows/x64/swscale.lib" />
+		<lib name="../../../../libs/ffmpeg/lib/windows/x64/swresample.lib" />
+		<lib name="bcrypt.lib" />
+		<lib name="ws2_32.lib" />
+		<lib name="secur32.lib" />
+	</section>
+	<section if="linux">
+		<lib name="../../../../libs/ffmpeg/lib/linux/x64/libavcodec.a" />
+		<lib name="../../../../libs/ffmpeg/lib/linux/x64/libavformat.a" />
+		<lib name="../../../../libs/ffmpeg/lib/linux/x64/libavutil.a" />
+		<lib name="../../../../libs/ffmpeg/lib/linux/x64/libswscale.a" />
+		<lib name="../../../../libs/ffmpeg/lib/linux/x64/libswresample.a" />
+	</section>
+	<compilerflag value="-D__STDC_LIMIT_MACROS" />
+	<compilerflag value="-D__STDC_FORMAT_MACROS" />
+	<compilerflag value="-D__STDC_CONSTANT_MACROS" />
 </target>
 ')
 class FFmpegVideoDecoder

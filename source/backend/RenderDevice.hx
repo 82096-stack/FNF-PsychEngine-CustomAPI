@@ -35,6 +35,26 @@ class BgfxTransientVertexBuffer {
 	public function new() {}
 }
 
+/**
+ * Result of a single-API GPU benchmark run.
+ *
+ * Captures both throughput (sustainedFPS) and frame time consistency
+ * (avgFrameMs, maxFrameMs, frameTimeStdDev) so the caller can score
+ * APIs on stability, not just raw speed.
+ */
+class BenchmarkResult
+{
+	/** Total frames completed divided by duration (frames/sec). */
+	public var sustainedFPS:Float = 0;
+	/** Mean frame time in milliseconds (lower is faster). */
+	public var avgFrameMs:Float = 0;
+	/** Worst single frame in milliseconds (spike / jitter indicator). */
+	public var maxFrameMs:Float = 0;
+	/** Standard deviation of frame times in ms (lower = more stable). */
+	public var frameTimeStdDev:Float = 0;
+	public function new() {}
+}
+
 class RenderDevice
 {
 	public static var initialized(default, null):Bool = false;
@@ -49,6 +69,7 @@ class RenderDevice
 	public static function init(width:Int, height:Int, api:GraphicsAPIType, vsync:Bool = false):Bool
 	{
 		if (initialized) return true;
+		BgfxVertexLayoutManager.invalidate();
 		var init = new BgfxInit();
 		init.type = apiToRendererType(api);
 		init.platformData.nwh = BgfxAPI.hxGetNativeWindowHandle();
@@ -129,6 +150,107 @@ class RenderDevice
 		return true;
 	}
 
+	/**
+	 * Benchmark a single graphics API by initializing bgfx and measuring
+	 * frame time consistency over a fixed time window.
+	 *
+	 * Instead of counting how fast N empty frames complete (peak throughput),
+	 * this method records per-frame timestamps over `durationSec` seconds
+	 * and returns both sustained FPS and frame time distribution — so the
+	 * caller can score APIs on stability, not just raw speed.
+	 *
+	 * Side effects:
+	 *   - Calls shutdown on the current bgfx context (if any).
+	 *   - Calls init with `api` (VSync off). If init fails, returns null.
+	 *   - Textures and shaders are invalidated; caller is responsible for
+	 *     calling BgfxTextureManager.restoreAll() after settling on a final API.
+	 *
+	 * @param api          The API to benchmark. Must not be `Auto`.
+	 * @param width        Window width for bgfx init.
+	 * @param height       Window height for bgfx init.
+	 * @param durationSec  Time window in seconds (default 3.0).
+	 * @return BenchmarkResult with FPS + frame time stats, or null if init failed.
+	 */
+	public static function benchmarkAPI(api:GraphicsAPIType, width:Int, height:Int,
+		durationSec:Float = 3.0):BenchmarkResult
+	{
+		// 1. Tear down current bgfx context (invalidate, don't dispose)
+		BgfxShaderManager.invalidateAll();
+		BgfxTextureManager.invalidateAll();
+		viewProjections.clear();
+		BgfxAPI.shutdown();
+		initialized = false;
+		BgfxVertexLayoutManager.invalidate();
+
+		// 2. Try to initialize bgfx with the target API (VSync off)
+		if (!init(width, height, api, false))
+		{
+			trace('RenderDevice.benchmarkAPI: ${api} init failed');
+			return null;
+		}
+
+		// 3. Warm-up: let GPU pipeline / driver / PSO creation stabilize
+		for (i in 0...10)
+		{
+			BgfxAPI.touch(VIEW_CLEAR);
+			BgfxAPI.frame(false);
+		}
+
+		// 4. Timed benchmark — record per-frame timestamps
+		var timestamps:Array<Float> = [];
+		var start = haxe.Timer.stamp();
+		var deadline = start + durationSec;
+		var now = start;
+		while (now < deadline)
+		{
+			BgfxAPI.touch(VIEW_CLEAR);
+			BgfxAPI.frame(false);
+			now = haxe.Timer.stamp();
+			timestamps.push(now);
+		}
+
+		// 5. Compute statistics
+		var frameCount = timestamps.length;
+		if (frameCount < 2)
+		{
+			trace('RenderDevice.benchmarkAPI: too few frames (${frameCount}), returning null');
+			return null;
+		}
+
+		var elapsed = now - start;
+		var frameTimes:Array<Float> = [];
+		var sum:Float = 0;
+		var maxDt:Float = 0;
+		var prev = start;
+		for (t in timestamps)
+		{
+			var dt = (t - prev) * 1000.0; // ms
+			frameTimes.push(dt);
+			sum += dt;
+			if (dt > maxDt) maxDt = dt;
+			prev = t;
+		}
+
+		var avg = sum / frameCount;
+		var variance:Float = 0;
+		for (dt in frameTimes)
+		{
+			var diff = dt - avg;
+			variance += diff * diff;
+		}
+		variance /= frameCount;
+		var stdDev = Math.sqrt(variance);
+
+		var result = new BenchmarkResult();
+		result.sustainedFPS = frameCount / elapsed;
+		result.avgFrameMs = avg;
+		result.maxFrameMs = maxDt;
+		result.frameTimeStdDev = stdDev;
+		return result;
+	}
+
+	/**
+	 * Set up the clear view
 	/**
 	 * Set up the clear view (VIEW_CLEAR, ID 0) and main view (VIEW_MAIN, ID 1).
 	 * Individual camera views start from VIEW_CAM0 (ID 2).

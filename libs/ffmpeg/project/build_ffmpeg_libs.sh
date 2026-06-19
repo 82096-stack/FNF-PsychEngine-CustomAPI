@@ -145,7 +145,7 @@ download_ffmpeg() {
 
 	# Rename to standard name
 	local extracted
-	extracted=$(find . -maxdepth 1 -type d -name "ffmpeg*" ! -name "ffmpeg-src" | head -1)
+	extracted=$(find . -maxdepth 1 -type d -iname "ffmpeg*" ! -name "ffmpeg-src" | head -1)
 	if [ -n "$extracted" ] && [ "$extracted" != "./ffmpeg-src" ]; then
 		mv "$extracted" ffmpeg-src
 	fi

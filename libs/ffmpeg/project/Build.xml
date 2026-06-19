@@ -28,7 +28,7 @@
 		<compilerflag value="-I../../../../source" />
 		<compilerflag value="-I../../../../include" />
 		<!-- FFmpeg headers (installed by build_ffmpeg_libs.sh) -->
-		<compilerflag value="-I${FFMPEG_DIR}/include" if="FFMPEG_LOCAL_INCLUDE" />
+		<compilerflag value="-I${FFMPEG_DIR}/include"  />
 
 		<!-- Use pkg-config on Linux when using system FFmpeg -->
 		<section if="linux &amp;&amp; FFMPEG_SYSTEM">
@@ -65,7 +65,6 @@
 			<lib name="${FFMPEG_DIR}/lib/macos/libavutil.a" />
 			<lib name="${FFMPEG_DIR}/lib/macos/libswscale.a" />
 			<lib name="${FFMPEG_DIR}/lib/macos/libswresample.a" />
-			<lib name="${FFMPEG_DIR}/lib/macos/libVideoDecoder_ffmpeg.a" />
 
 			<!-- FFmpeg dependencies on macOS -->
 			<vflag name="-framework" value="CoreFoundation" />
@@ -89,7 +88,7 @@
 		<!-- ═══════════════ Linux x64 ═══════════════ -->
 		<section if="linux">
 			<!-- Static FFmpeg (bundled) -->
-			<section if="FFMPEG_BUNDLED">
+			<section >
 				<lib name="${FFMPEG_DIR}/lib/linux/x64/libavcodec.a" />
 				<lib name="${FFMPEG_DIR}/lib/linux/x64/libavformat.a" />
 				<lib name="${FFMPEG_DIR}/lib/linux/x64/libavutil.a" />

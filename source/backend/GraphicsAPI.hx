@@ -12,6 +12,15 @@ import lime.system.DisplayMode;
  */
 class GraphicsAPI
 {
+	/**
+	 * Time window (in seconds) for benchmarking each graphics API.
+	 *
+	 * Each API gets the same fixed time budget — frame timestamps are
+	 * recorded within this window to compute sustained FPS and frame time
+	 * consistency. 3 seconds × 5 APIs (Windows) = ~15 s total.
+	 */
+	public static inline var BENCHMARK_DURATION_SEC:Float = 3.0;
+
 	public static function getAvailableAPIs():Array<GraphicsAPIType>
 	{
 		var apis:Array<GraphicsAPIType> = [Auto];
@@ -30,6 +39,108 @@ class GraphicsAPI
 		if (apis.contains(DirectX9)) return DirectX9;
 		if (apis.contains(Vulkan)) return Vulkan;
 		return OpenGL;
+	}
+
+	/**
+	 * Benchmark all supported graphics APIs and return the one with the
+	 * best balance of sustained FPS and frame time stability.
+	 *
+	 * For each API, a 3-second time-window benchmark records per-frame
+	 * timestamps. The scoring formula penalizes jitter:
+	 *
+	 *   consistencyScore = 1 / (1 + stdDev / avg)
+	 *   score = sustainedFPS × consistencyScore
+	 *
+	 * An API with 10,000 FPS and 0.5 ms jitter still wins over 5,000 FPS
+	 * with 0.05 ms jitter (the jitter is negligible at that speed). But
+	 * when two APIs are close in FPS, the more stable one wins.
+	 *
+	 * If called when the renderer is not initialized (e.g., at startup),
+	 * falls back to the fast platform heuristic (detectBestAPI).
+	 *
+	 * @return The most stable graphics API for this GPU.
+	 */
+	public static function benchmarkBestAPI():GraphicsAPIType
+	{
+		if (!RenderDevice.initialized)
+		{
+			trace('GraphicsAPI.benchmarkBestAPI: renderer not initialized, using heuristic');
+			return detectBestAPI();
+		}
+
+		var supported = RenderDevice.getSupportedAPIs();
+		if (supported.length == 0) return OpenGL;
+
+		var w = BgfxWindowManager.width;
+		var h = BgfxWindowManager.height;
+
+		var bestAPI:GraphicsAPIType = OpenGL;
+		var bestScore:Float = -1.0;
+		var benchmarkedAny:Bool = false;
+		var originalAPI:GraphicsAPIType = RenderDevice.activeAPI;
+
+		for (api in supported)
+		{
+			if (api == Auto) continue;
+
+			var r = RenderDevice.benchmarkAPI(api, w, h, BENCHMARK_DURATION_SEC);
+			if (r == null)
+			{
+				trace('Benchmark: ${api} SKIPPED (init failed)');
+				continue;
+			}
+
+			benchmarkedAny = true;
+
+			// Consistency score: penalize jitter
+			// coeffOfVariation = stdDev / avg  (0 = perfect)
+			// consistencyScore = 1 / (1 + cv)  → range (0, 1]
+			var cv = r.frameTimeStdDev / r.avgFrameMs;
+			var consistencyScore = 1.0 / (1.0 + cv);
+			var score = r.sustainedFPS * consistencyScore;
+
+			trace('Benchmark: ${api} — sustained ${Std.int(r.sustainedFPS)} FPS, '
+				+ 'avg ${Std.int(r.avgFrameMs * 100) / 100} ms, '
+				+ 'max ${Std.int(r.maxFrameMs * 100) / 100} ms, '
+				+ 'stddev ${Std.int(r.frameTimeStdDev * 100) / 100} ms → '
+				+ 'score ${Std.int(score)}');
+
+			if (score > bestScore)
+			{
+				bestScore = score;
+				bestAPI = api;
+			}
+		}
+
+		// Recovery: ensure the renderer is in a working state
+		if (!benchmarkedAny)
+		{
+			// All APIs failed. Re-init with the original API.
+			trace('Benchmark: all APIs failed, restoring ${originalAPI}');
+			BgfxShaderManager.invalidateAll();
+			BgfxTextureManager.invalidateAll();
+			RenderDevice.shutdown();
+			RenderDevice.init(w, h, originalAPI, false);
+			BgfxTextureManager.restoreAll();
+			bestAPI = originalAPI;
+		}
+		else if (bestAPI != RenderDevice.activeAPI || !RenderDevice.initialized)
+		{
+			// Switch to the winning API (handles shutdown → init → restoreAll)
+			RenderDevice.switchAPI(bestAPI, w, h);
+		}
+		else
+		{
+			// Already on the best API, just restore textures (invalidated by benchmarkAPI)
+			BgfxTextureManager.restoreAll();
+		}
+
+		// Persist the result
+		ClientPrefs.data.graphicsAPI = cast bestAPI;
+		ClientPrefs.saveSettings();
+
+		trace('Benchmark: Best API is ${bestAPI} (score ${Std.int(bestScore)})');
+		return bestAPI;
 	}
 
 	public static function getActiveAPI():GraphicsAPIType

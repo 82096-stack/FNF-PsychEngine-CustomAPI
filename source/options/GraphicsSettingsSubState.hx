@@ -3,6 +3,10 @@ package options;
 import objects.Character;
 import backend.GraphicsAPI;
 import backend.GraphicsAPIType;
+import flixel.FlxG;
+import flixel.FlxSprite;
+import flixel.text.FlxText;
+import flixel.util.FlxColor;
 
 class GraphicsSettingsSubState extends BaseOptionsMenu
 {
@@ -10,6 +14,16 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 	var boyfriend:Character = null;
 	var graphicsAPIOptionIndex:Int = -1;
 	var originalAPI:String;
+
+	// ── Benchmark UI state ────────────────────────────────────────
+	var testingOverlay:FlxSprite;
+	var testingText:FlxText;
+	var completeText:FlxText;
+	var isTesting:Bool = false;          // true while benchmark running or completing
+	var benchmarkPending:Bool = false;   // true during delay before benchmark starts
+	var completeTimer:Float = 0;
+	var completePhase:Int = 0;           // 0=idle, 1=testing, 2=hold 1s, 3=fade 0.5s
+	var pendingAPI:String = null;        // API to switch to if not Auto, or null for Auto
 
 	public function new()
 	{
@@ -70,6 +84,29 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		super();
 		insert(1, boyfriend);
 
+		// ── Benchmark overlay (hidden initially) ───────────────────
+		testingOverlay = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, FlxColor.fromRGB(64, 64, 64));
+		testingOverlay.alpha = 0.7;
+		testingOverlay.scrollFactor.set(0, 0);
+		testingOverlay.visible = false;
+		add(testingOverlay);
+
+		testingText = new FlxText(0, 0, FlxG.width, 'Testing In Progress');
+		testingText.setFormat(Paths.font('vcr.ttf'), 48, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		testingText.screenCenter();
+		testingText.scrollFactor.set(0, 0);
+		testingText.visible = false;
+		add(testingText);
+
+		completeText = new FlxText(0, 30, FlxG.width, 'Testing Complete!');
+		completeText.setFormat(Paths.font('vcr.ttf'), 36, FlxColor.WHITE, CENTER, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+		completeText.x = 0;
+		completeText.y = 30;
+		completeText.scrollFactor.set(0, 0);
+		completeText.alpha = 0;
+		completeText.visible = false;
+		add(completeText);
+
 		// Remember original value so we can restore on BACK
 		originalAPI = ClientPrefs.data.graphicsAPI;
 		refreshAPIDescription();
@@ -104,37 +141,104 @@ class GraphicsSettingsSubState extends BaseOptionsMenu
 		@:privateAccess descText.y += 270;
 	}
 
+	/**
+	 * Called by haxe.Timer.delay after the overlay has been rendered for
+	 * one frame, so the user sees "Testing In Progress" before we block.
+	 */
+	function runBenchmark()
+	{
+		var best = GraphicsAPI.benchmarkBestAPI();
+		GraphicsAPI.switchAPI(best);
+
+		ClientPrefs.saveSettings();
+		refreshAPIDescription();
+
+		// Hide overlay, show "Testing Complete!" — allow interaction now
+		isTesting = false;
+		testingOverlay.visible = false;
+		testingText.visible = false;
+		benchmarkPending = false;
+		completePhase = 2;
+		completeTimer = 0;
+		completeText.visible = true;
+		completeText.alpha = 1.0;
+		completeText.screenCenter(X);
+
+		FlxG.sound.play(Paths.sound('confirmMenu'));
+	}
+
 	override function update(elapsed:Float)
 	{
 		super.update(elapsed);
 
+		// ── "Testing Complete!" animation ──────────────────────────
+		if (completePhase == 2)
+		{
+			// Hold "Testing Complete!" visible for 1 second
+			completeTimer += elapsed;
+			if (completeTimer >= 1.0)
+			{
+				completePhase = 3;
+				completeTimer = 0;
+			}
+		}
+		else if (completePhase == 3)
+		{
+			// Fade out over 0.5 seconds
+			completeTimer += elapsed;
+			completeText.alpha = 1.0 - (completeTimer / 0.5);
+			if (completeTimer >= 0.5)
+			{
+				completeText.alpha = 0;
+				completeText.visible = false;
+				completePhase = 0;
+				isTesting = false;
+			}
+		}
+
+		// ── ENTER key on Graphics API option ───────────────────────
 		if (graphicsAPIOptionIndex >= 0 && curSelected == graphicsAPIOptionIndex
-			&& FlxG.keys.justPressed.ENTER)
+			&& FlxG.keys.justPressed.ENTER && !isTesting && completePhase == 0)
 		{
 			var selected = ClientPrefs.data.graphicsAPI;
 			if (selected != 'Auto')
+			{
 				GraphicsAPI.switchAPI(cast selected);
+				originalAPI = selected;
+				ClientPrefs.saveSettings();
+				refreshAPIDescription();
+				FlxG.sound.play(Paths.sound('confirmMenu'));
+			}
 			else
-				GraphicsAPI.switchAPI(GraphicsAPI.detectBestAPI());
+			{
+				// Show overlay immediately
+				isTesting = true;
+				benchmarkPending = true;
+				completePhase = 1;
+				testingOverlay.visible = true;
+				testingText.visible = true;
+				originalAPI = selected;
 
-			originalAPI = selected;
-			ClientPrefs.saveSettings();
-			refreshAPIDescription();
-			FlxG.sound.play(Paths.sound('confirmMenu'));
+				// Defer benchmark by one frame so the overlay actually renders
+				// before the main thread blocks on benchmarkBestAPI()
+				haxe.Timer.delay(runBenchmark, 100);
+			}
 		}
 	}
 
 	override function close()
 	{
-		// Restore original API if user didn't press ENTER
+		// Block closing only while benchmark is actually running
+		if (isTesting) return;
 		if (ClientPrefs.data.graphicsAPI != originalAPI)
 			ClientPrefs.data.graphicsAPI = originalAPI;
-
 		super.close();
 	}
 
 	override function changeSelection(change:Int = 0)
 	{
+		// Block navigation only while benchmark is actually running
+		if (isTesting) return;
 		super.changeSelection(change);
 		boyfriend.visible = (antialiasingOption == curSelected);
 	}
