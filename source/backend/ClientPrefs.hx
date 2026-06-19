@@ -23,6 +23,7 @@ import states.TitleState;
 	public var cacheOnGPU:Bool = #if !switch false #else true #end; // GPU Caching made by Raltyro
 	public var vsync:Bool = false; // V-Sync: caps framerate to display refresh rate
 	public var graphicsAPI:String = 'Auto'; // Graphics Rendering API: Auto, DirectX 12, Vulkan, Metal, OpenGL
+	public var firstRunAPI:Bool = true; // First run — ask to benchmark best API
 	public var camZooms:Bool = true;
 	public var hideHud:Bool = false;
 	public var noteOffset:Int = 0;
@@ -187,6 +188,12 @@ class ClientPrefs {
 		// Initialize graphics API if not set
 		if(FlxG.save.data.graphicsAPI == null)
 			data.graphicsAPI = 'Auto';
+
+		// First-run graphics API benchmark prompt
+		if(FlxG.save.data.firstRunAPI == null)
+			data.firstRunAPI = true;
+		else
+			data.firstRunAPI = FlxG.save.data.firstRunAPI;
 
 		// Apply V-Sync and framerate settings
 		GraphicsAPI.applyVSync(data.vsync);
