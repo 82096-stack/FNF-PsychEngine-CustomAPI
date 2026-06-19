@@ -2,21 +2,23 @@
 
 **Friday Night Funkin': Psych Engine** — A feature-rich FNF modding engine with multi-API rendering support (Metal, Vulkan, DirectX 12/11/9, OpenGL) and native FFmpeg video playback.
 
+> 🇨🇳 [中文文档 (Chinese Documentation)](README_CN.md)
+
 ---
 
-# 编译指南 / Build Guide
+# Build Guide
 
-## 前置依赖 / Prerequisites
+## Prerequisites
 
-| 依赖 / Tool | 版本 / Version | 说明 / Notes |
+| Tool | Version | Notes |
 |---|---|---|
 | **Haxe** | 4.3.6+ | [download](https://haxe.org/download/version/4.3.6) |
 | **git** | any | [download](https://git-scm.com) |
-| **macOS** | Xcode CLT 15+ | `xcode-select --install` |
+| **macOS** | Xcode CLT 15+ / nasm | `xcode-select --install` + `brew install nasm` |
 | **Windows** | Visual Studio 2022 | `VC.Tools.x86.x64` + `Windows10SDK.19041` |
 | **Linux** | g++ 11+ / make / nasm | `sudo apt install g++ make nasm` |
 
-## 快速开始 / Quick Start
+## Quick Start
 
 ### macOS / Linux
 
@@ -36,13 +38,13 @@ setup\windows.bat
 haxelib run lime build windows
 ```
 
-## 完整依赖清单 / Full Dependency List
+## Full Dependency List
 
-执行 `setup/unix.sh` 或 `setup/windows.bat` 会自动安装以下所有依赖：
+Running `setup/unix.sh` or `setup/windows.bat` automatically installs all dependencies listed below.
 
-### Haxelib 包 / Haxelib Packages
+### Haxelib Packages
 
-| 包 / Package | 版本 / Version | 安装指令 / Install Command |
+| Package | Version | Install Command |
 |---|---|---|
 | **lime** | 8.2.0 | `haxelib install lime 8.2.0` |
 | **openfl** | 9.3.3 | `haxelib install openfl 9.3.3` |
@@ -54,9 +56,9 @@ haxelib run lime build windows
 | **hxdiscord_rpc** | 1.2.4 | `haxelib install hxdiscord_rpc 1.2.4` |
 | **hxcpp** | 4.3.2 | `haxelib install hxcpp 4.3.2` |
 
-### Git 包 / Git Packages
+### Git Packages
 
-| 包 / Package | 仓库 / Repository | Commit | 安装指令 / Install Command |
+| Package | Repository | Commit | Install Command |
 |---|---|---|---|
 | **flxanimate** | `https://github.com/Dot-Stuff/flxanimate` | `768740a` | `haxelib git flxanimate https://github.com/Dot-Stuff/flxanimate 768740a56b26aa0c072720e0d1236b94afe68e3e` |
 | **linc_luajit** | `https://github.com/superpowers04/linc_luajit` | `1906c4a` | `haxelib git linc_luajit https://github.com/superpowers04/linc_luajit 1906c4a96f6bb6df66562b3f24c62f4c5bba14a7` |
@@ -65,26 +67,23 @@ haxelib run lime build windows
 
 ---
 
-## FFmpeg 原生视频播放 / FFmpeg Native Video Playback
+## FFmpeg Native Video Playback
 
-Psych Engine 使用自研的 **FFmpeg 原生视频解码器**（`source/ffmpeg/`）替代了 hxvlc，无需安装 VLC 或任何外部播放器。FFmpeg 库静态链接到游戏二进制文件中，玩家无需额外安装任何软件。
+Psych Engine uses a custom **FFmpeg native video decoder** (`source/ffmpeg/`) that replaces hxvlc entirely. No VLC or external players needed — FFmpeg is statically linked into the game binary. Players download and run — nothing else.
 
-Psych Engine now uses a custom **FFmpeg native video decoder** (`source/ffmpeg/`) that replaces hxvlc entirely. No VLC or external players needed — FFmpeg is statically linked into the game binary. Players download and run — nothing else.
+### Supported Formats
 
-### 支持的格式 / Supported Formats
-
-| 容器 / Container | 视频编码 / Video Codec | 音频编码 / Audio Codec | 文件扩展名 / Extension |
+| Container | Video Codec | Audio Codec | Extension |
 |---|---|---|---|
 | **MP4** | H.264 (AVC) | AAC, MP3 | `.mp4` |
 | **WebM** | VP9 | Vorbis, Opus | `.webm` |
 | **MKV** | H.264 / VP9 | AAC, Vorbis, Opus | `.mkv` |
 
-> 视频解码为 RGBA 帧后通过 BGFX 纹理渲染。解码在独立线程中运行，不会阻塞主线程。
 > Video is decoded to RGBA frames and rendered via BGFX textures. Decoding runs on a dedicated thread — zero main-thread blocking.
 
-### 编译 FFmpeg 库 / Build FFmpeg Libraries
+### Build FFmpeg Libraries
 
-首次编译前，需要先编译 FFmpeg 静态库：
+Before your first build, compile the FFmpeg static libraries:
 
 ```bash
 # macOS / Linux
@@ -92,20 +91,20 @@ cd libs/ffmpeg/project
 chmod +x build_ffmpeg_libs.sh
 ./build_ffmpeg_libs.sh
 
-# Windows (需要 Git Bash 或 WSL / requires Git Bash or WSL)
+# Windows (requires Git Bash or WSL)
 cd libs/ffmpeg/project
 bash build_ffmpeg_libs.sh windows
 ```
 
-构建产物放置在 / Build output:
-- `libs/ffmpeg/lib/macos/libavcodec.a` 等
-- `libs/ffmpeg/lib/windows/x64/avcodec.lib` 等
-- `libs/ffmpeg/lib/linux/x64/libavcodec.a` 等
-- `libs/ffmpeg/include/` — 公共头文件
+Build output:
+- `libs/ffmpeg/lib/macos/libavcodec.a` etc.
+- `libs/ffmpeg/lib/windows/x64/avcodec.lib` etc.
+- `libs/ffmpeg/lib/linux/x64/libavcodec.a` etc.
+- `libs/ffmpeg/include/` — public headers
 
-### Linux 系统 FFmpeg / Linux System FFmpeg
+### Linux System FFmpeg
 
-Linux 用户也可使用系统包管理器安装的 FFmpeg，在编译时添加 `-D FFMPEG_SYSTEM`：
+Linux users can also use the system package manager's FFmpeg. Build with `-D FFMPEG_SYSTEM`:
 
 ```bash
 # Debian / Ubuntu
@@ -117,54 +116,54 @@ sudo dnf install ffmpeg-devel
 # Arch
 sudo pacman -S ffmpeg
 
-# 然后编译时指定系统 FFmpeg
+# Then build with system FFmpeg
 haxelib run lime build linux -D FFMPEG_SYSTEM
 ```
 
-### 编译标志 / Build Flags
+### Build Flags
 
-在 `Project.xml` 中：
+In `Project.xml`:
 
 ```xml
-<!-- 启用视频播放（macOS, Windows, Linux; 排除 32-bit） -->
+<!-- Enable video playback (macOS, Windows, Linux; excludes 32-bit) -->
 <define name="VIDEOS_ALLOWED" if="windows || linux || android || mac" unless="32bits"/>
 
-<!-- FFmpeg 构建配置（自动包含） -->
+<!-- FFmpeg build config (auto-included) -->
 <include name="libs/ffmpeg/project/Build.xml" if="VIDEOS_ALLOWED" />
 
-<!-- 使用系统 FFmpeg 而非静态链接版本 (仅 Linux) -->
+<!-- Use system FFmpeg instead of static linking (Linux only) -->
 <!-- <define name="FFMPEG_SYSTEM" /> -->
 
-<!-- 可选：启用 FFmpeg 调试日志（仅 debug 构建） -->
-<!-- 已在 debug 构建中默认开启 -->
+<!-- Optional: enable FFmpeg debug logging (debug builds only) -->
+<!-- Enabled by default in debug builds -->
 <haxedef name="FFMPEG_DEBUG_LOGGING" if="VIDEOS_ALLOWED debug" />
 ```
 
-### Lua 接口 / Lua API
+### Lua API
 
 ```lua
--- 播放视频 / Play video
+-- Play video
 startVideo("intro", true, false, false, true)
--- 参数: (videoName, canSkip, forMidSong, shouldLoop, playOnLoad)
+-- Arguments: (videoName, canSkip, forMidSong, shouldLoop, playOnLoad)
 
--- 新增：视频元数据查询
-local t = getVideoTime()       -- 当前播放位置 (秒)
-local d = getVideoDuration()   -- 总时长 (秒)
-seekVideo(10.5)                -- 跳转到 10.5 秒
+-- Video metadata queries
+local t = getVideoTime()       -- Current playback position (seconds)
+local d = getVideoDuration()   -- Total duration (seconds)
+seekVideo(10.5)                -- Seek to 10.5 seconds
 ```
 
-### Mod 中使用 / Usage in Mods
+### Usage in Mods
 
-**Chart events (推荐):**
+**Chart events (recommended):**
 Place a custom event named `playvideo` with the video filename (without extension) as Value 1.
 
-**视频文件位置 / Video file locations:**
-- `mods/<yourMod>/videos/<name>.mp4` (mod 专用 / mod-specific)
+**Video file locations:**
+- `mods/<yourMod>/videos/<name>.mp4` (mod-specific)
 - `mods/<yourMod>/videos/<name>.webm`
-- `assets/videos/<name>.mp4` (共享/回退 / shared/fallback)
+- `assets/videos/<name>.mp4` (shared / fallback)
 - `assets/videos/<name>.webm`
 
-### 架构 / Architecture
+### Architecture
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -184,31 +183,31 @@ Place a custom event named `playvideo` with the video filename (without extensio
 └──────────────────────────────────────────────────────┘
 ```
 
-关键特性 / Key features:
-- **解码线程分离** — 解码在独立 `std::thread` 中运行，主线程零阻塞
-- **零拷贝帧传输** — RGBA 帧直接写入复用 `BitmapData`，无额外分配
-- **BGFX 纹理复用** — 同一 `FlxGraphic` 全程复用，仅每帧更新 GPU 纹理
-- **自动资源回收** — `destroy()` 自动停止解码线程并释放所有 FFmpeg 资源
-- **跨平台** — Windows (DirectX 12/11/9, Vulkan), macOS (Metal), Linux (Vulkan) 全支持
+Key features:
+- **Dedicated decode thread** — decoding runs on an independent `std::thread`, zero main-thread blocking
+- **Zero-copy frame delivery** — RGBA frames written directly into a reused `BitmapData`, no extra allocations
+- **BGFX texture reuse** — a single `FlxGraphic` is reused for the entire video, only the GPU texture is updated each frame
+- **Automatic resource cleanup** — `destroy()` automatically stops the decode thread and frees all FFmpeg resources
+- **Cross-platform** — Windows (DirectX 12/11/9, Vulkan), macOS (Metal), Linux (Vulkan) all supported
 
-### 故障排除 / Troubleshooting
+### Troubleshooting
 
-| 症状 / Symptom | 原因 / Cause | 解决方案 / Solution |
+| Symptom | Cause | Solution |
 |---|---|---|
-| "Video not found" in debug | 视频文件不存在或格式不支持 | 确认视频在 `mods/<mod>/videos/` 或 `assets/videos/`，格式为 `.mp4` 或 `.webm` |
-| 编译错误: `'libavformat/avformat.h' file not found` | FFmpeg 库未编译 | 运行 `libs/ffmpeg/project/build_ffmpeg_libs.sh` 编译 FFmpeg |
-| 链接错误: undefined reference to `avformat_open_input` | FFmpeg 库未链接 | 确认 `libs/ffmpeg/lib/<platform>/` 下有对应 `.a`/`.lib` 文件 |
-| 视频播放卡顿 / 帧率低 | 软件解码性能不足 | 启用硬件加速（构建脚本已包含 VideoToolbox/DXVA2/VAAPI 标志） |
-| 绿屏 / 黑屏 | 像素格式转换失败 | 检查视频编码是否为 H.264 或 VP9 |
-| Linux: 编译成功但运行时找不到符号 | 系统 FFmpeg 版本不匹配 | 使用 `./build_ffmpeg_libs.sh linux` 编译静态库 |
+| "Video not found" in debug | Video file missing or format unsupported | Ensure video is in `mods/<mod>/videos/` or `assets/videos/`, format `.mp4` or `.webm` |
+| Build error: `'libavformat/avformat.h' file not found` | FFmpeg libraries not built | Run `libs/ffmpeg/project/build_ffmpeg_libs.sh` to build FFmpeg |
+| Link error: undefined reference to `avformat_open_input` | FFmpeg libraries not linked | Verify `.a`/`.lib` files exist under `libs/ffmpeg/lib/<platform>/` |
+| Video stuttering / low FPS | Software decoding bottleneck | Enable hardware acceleration (build script already includes VideoToolbox/DXVA2/VAAPI flags) |
+| Green screen / black screen | Pixel format conversion failure | Check that the video codec is H.264 or VP9 |
+| Linux: builds but runtime symbol errors | System FFmpeg version mismatch | Use `./build_ffmpeg_libs.sh linux` to build static libraries |
 
 ---
 
-## bgfx 多 API 渲染 / bgfx Multi-API Rendering
+## bgfx Multi-API Rendering
 
-Psych Engine 使用 bgfx 实现跨平台多 API 渲染，支持运行时切换。
+Psych Engine uses bgfx for cross-platform multi-API rendering with runtime switching.
 
-### 编译 bgfx 库 / Build bgfx Libraries
+### Build bgfx Libraries
 
 ```bash
 # macOS / Linux
@@ -216,14 +215,14 @@ cd libs/hxbgfx/project
 chmod +x build_bgfx_libs.sh
 ./build_bgfx_libs.sh
 
-# Windows (需要 Git Bash 或 WSL / requires Git Bash or WSL)
+# Windows (requires Git Bash or WSL)
 cd libs/hxbgfx/project
 bash build_bgfx_libs.sh
 ```
 
-### 各平台支持的 API / API Support by Platform
+### API Support by Platform
 
-| 平台 / Platform | 可选 API / Available APIs | 默认 / Default |
+| Platform | Available APIs | Default |
 |---|---|---|
 | **macOS** | Metal, OpenGL | Metal |
 | **Windows** | DirectX 12, DirectX 11, DirectX 9, Vulkan, OpenGL | DirectX 12 |
@@ -231,105 +230,115 @@ bash build_bgfx_libs.sh
 
 ---
 
-## 项目结构 / Project Structure
+## Project Structure
 
 ```
 FNF-PsychEngine-CustomAPI/
-├── source/                       # Haxe 源码
-│   ├── backend/                  # 渲染后端 + 工具类
-│   │   ├── GraphicsAPI.hx           # API 选择/切换
-│   │   ├── GraphicsAPIType.hx       # 枚举类型定义
-│   │   ├── RenderDevice.hx          # bgfx 渲染抽象层
-│   │   ├── BgfxAPI.hx               # bgfx C API 接口
-│   │   ├── BgfxFallback.hx          # 初始化/回退
-│   │   ├── BgfxWindowManager.hx     # 窗口管理
-│   │   ├── BgfxTextureManager.hx    # 纹理管理
-│   │   ├── BgfxShaderManager.hx     # Shader 管理
-│   │   ├── PsychCamera.hx           # bgfx 相机
-│   │   ├── ClientPrefs.hx           # 设置存储
-│   │   └── Paths.hx                 # 资源路径 (支持 mp4 + webm)
-│   ├── ffmpeg/                   # FFmpeg 原生视频系统
-│   │   ├── VideoDecoder.h           # C++ 解码器头文件
-│   │   ├── VideoDecoder.cpp         # C++ 解码器实现 (avcodec+swscale)
-│   │   ├── FFmpegVideoDecoder.hx    # Haxe CFFI 桥接
-│   │   ├── VideoTexture.hx          # BGFX 视频纹理管理
-│   │   └── VideoSprite.hx           # FlxSprite 视频显示
-│   ├── objects/                  # 游戏对象
-│   │   └── VideoSprite.hx           # 视频播放封装 (skip UI + 回调)
-│   ├── states/                   # 游戏状态
+├── source/                       # Haxe source
+│   ├── backend/                  # Rendering backend + utilities
+│   │   ├── GraphicsAPI.hx           # API selection / switching
+│   │   ├── GraphicsAPIType.hx       # Enum type definitions
+│   │   ├── RenderDevice.hx          # bgfx rendering abstraction
+│   │   ├── BgfxAPI.hx               # bgfx C API interface
+│   │   ├── BgfxFallback.hx          # Initialization / fallback
+│   │   ├── BgfxWindowManager.hx     # Window management
+│   │   ├── BgfxTextureManager.hx    # Texture management
+│   │   ├── BgfxShaderManager.hx     # Shader management
+│   │   ├── PsychCamera.hx           # bgfx camera
+│   │   ├── ClientPrefs.hx           # Settings persistence
+│   │   └── Paths.hx                 # Asset paths (supports mp4 + webm)
+│   ├── ffmpeg/                   # FFmpeg native video system
+│   │   ├── VideoDecoder.h           # C++ decoder header
+│   │   ├── VideoDecoder.cpp         # C++ decoder implementation (avcodec+swscale)
+│   │   ├── FFmpegVideoDecoder.hx    # Haxe CFFI bridge
+│   │   ├── VideoTexture.hx          # BGFX video texture management
+│   │   └── VideoSprite.hx           # FlxSprite video display
+│   ├── objects/                  # Game objects
+│   │   └── VideoSprite.hx           # Video playback wrapper (skip UI + callbacks)
+│   ├── states/                   # Game states
 │   │   └── PlayState.hx             # startVideo() API
-│   ├── psychlua/                 # Lua 脚本
-│   │   └── FunkinLua.hx             # Lua 视频接口
-│   ├── shaders/                  # 内嵌 GLSL Shader
-│   └── options/                  # 设置菜单
-├── libs/                         # 原生库
-│   ├── hxbgfx/                   # bgfx 渲染库
+│   ├── psychlua/                 # Lua scripting
+│   │   └── FunkinLua.hx             # Lua video interface
+│   ├── shaders/                  # Embedded GLSL shaders
+│   └── options/                  # Settings menus
+├── libs/                         # Native libraries
+│   ├── hxbgfx/                   # bgfx rendering library
 │   │   ├── project/
-│   │   │   ├── Build.xml            # hxcpp 链接配置
-│   │   │   ├── bgfx_bridge.cpp      # 平台窗口句柄桥接
-│   │   │   └── build_bgfx_libs.sh   # bgfx 编译脚本
-│   │   └── lib/                     # 编译产物
-│   ├── ffmpeg/                   # FFmpeg 视频解码库
+│   │   │   ├── Build.xml            # hxcpp linker config
+│   │   │   ├── bgfx_bridge.cpp      # Platform window handle bridge
+│   │   │   └── build_bgfx_libs.sh   # bgfx build script
+│   │   └── lib/                     # Build artifacts
+│   ├── ffmpeg/                   # FFmpeg video decode library
 │   │   ├── project/
-│   │   │   ├── Build.xml            # hxcpp 链接配置
-│   │   │   └── build_ffmpeg_libs.sh # FFmpeg 编译脚本
-│   │   ├── include/                 # FFmpeg 头文件 (编译后)
-│   │   └── lib/                     # 编译产物
+│   │   │   ├── Build.xml            # hxcpp linker config
+│   │   │   └── build_ffmpeg_libs.sh # FFmpeg build script
+│   │   ├── include/                 # FFmpeg headers (after build)
+│   │   └── lib/                     # Build artifacts
 │   │       ├── macos/
 │   │       ├── windows/x64/
 │   │       └── linux/x64/
-├── Project.xml                   # Lime 项目配置
-├── setup/                        # 平台安装脚本
+├── Project.xml                   # Lime project config
+├── setup/                        # Platform setup scripts
 │   ├── unix.sh
 │   ├── windows.bat
 │   └── windows-msvc.bat
-├── assets/                       # 游戏资源
-└── docs/                         # 文档
+├── assets/                       # Game assets
+└── docs/                         # Documentation
 ```
 
 ---
 
-## 配置选项 / Customization
+## Customization
 
-### 图形 API / Graphics API
+### Graphics API
 
-在 `Project.xml` 中：
+In `Project.xml`:
 
 ```xml
-<!-- bgfx 多 API 渲染（默认启用） -->
+<!-- bgfx multi-API rendering (enabled by default) -->
 <define name="BGFX_RENDERER" />
 
-<!-- 强制指定编译时 API（可选） -->
-<!-- -D GRAPHICS_API_OPENGL    强制 OpenGL -->
-<!-- -D GRAPHICS_API_METAL     强制 Metal -->
-<!-- -D GRAPHICS_API_VULKAN    强制 Vulkan -->
-<!-- -D GRAPHICS_API_DIRECTX12 强制 DirectX 12 -->
-<!-- -D GRAPHICS_API_DIRECTX11 强制 DirectX 11 -->
-<!-- -D GRAPHICS_API_DIRECTX9  强制 DirectX 9 -->
+<!-- Force a specific API at compile time (optional) -->
+<!-- -D GRAPHICS_API_OPENGL    Force OpenGL -->
+<!-- -D GRAPHICS_API_METAL     Force Metal -->
+<!-- -D GRAPHICS_API_VULKAN    Force Vulkan -->
+<!-- -D GRAPHICS_API_DIRECTX12 Force DirectX 12 -->
+<!-- -D GRAPHICS_API_DIRECTX11 Force DirectX 11 -->
+<!-- -D GRAPHICS_API_DIRECTX9  Force DirectX 9 -->
 ```
 
-在游戏设置中（运行时切换，即时生效）：
+In the in-game settings menu (runtime switching, takes effect immediately):
 
 ```
 Options → Graphics → Graphics Rendering API
-  - Auto (平台最佳)
+  - Auto: benchmarks all available APIs on your GPU and picks the fastest
+    (press ENTER to run; on first startup a platform heuristic is used)
   - Metal / DirectX 12 / DirectX 11 / DirectX 9 / Vulkan
   - OpenGL
 ```
 
-### 其他功能开关 / Feature Toggles
+### Auto API Detection
 
-在 `Project.xml` 中注释/删除对应行：
+When "Auto" is selected and confirmed (ENTER) in the Graphics Settings menu, Psych Engine benchmarks every available graphics API over a 3-second time window — recording per-frame timestamps to measure both sustained FPS and frame time consistency (standard deviation). The API with the best **stability score** (sustained FPS × consistency) is saved and used for all subsequent sessions.
 
-| 功能 / Feature | Define |
+- At first launch (before any benchmark), a fast platform heuristic is used (macOS → Metal, Windows → DirectX 12, Linux → Vulkan).
+- The benchmark runs synchronously and typically completes in ~15 seconds on Windows with 5 APIs (3 seconds per API). On modern GPUs with fewer APIs, it is faster.
+- To re-run the benchmark, select "Auto" and press ENTER again.
+- Results are persisted to the save file and used directly on subsequent launches.
+
+### Feature Toggles
+
+Comment out or delete the corresponding lines in `Project.xml`:
+
+| Feature | Define |
 |---|---|
-| Lua 脚本 | `LUA_ALLOWED` |
+| Lua scripting | `LUA_ALLOWED` |
 | HScript | `HSCRIPT_ALLOWED` |
-| 视频播放 | `VIDEOS_ALLOWED` |
-| FFmpeg 系统库 (Linux) | `FFMPEG_SYSTEM` |
+| Video playback | `VIDEOS_ALLOWED` |
+| FFmpeg system libs (Linux) | `FFMPEG_SYSTEM` |
 | Discord RPC | `DISCORD_ALLOWED` |
-| Mod 支持 | `MODS_ALLOWED` |
-| 成就系统 | `ACHIEVEMENTS_ALLOWED` |
+| Mod support | `MODS_ALLOWED` |
+| Achievements | `ACHIEVEMENTS_ALLOWED` |
 
 ---
 
