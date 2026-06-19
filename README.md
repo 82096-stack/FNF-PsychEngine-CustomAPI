@@ -311,17 +311,28 @@ In the in-game settings menu (runtime switching, takes effect immediately):
 
 ```
 Options → Graphics → Graphics Rendering API
-  - Auto: benchmarks all available APIs on your GPU and picks the fastest
-    (press ENTER to run; on first startup a platform heuristic is used)
+  - Auto: benchmarks all available APIs on your GPU and picks the one with
+    the best stability score (press ENTER to run)
   - Metal / DirectX 12 / DirectX 11 / DirectX 9 / Vulkan
   - OpenGL
 ```
+
+### First-Run Setup
+
+On the very first launch, before the title screen appears, Psych Engine asks:
+
+> "Looks like it is your first time running the Custom API Psych Engine!
+>  Do you want to do a test for the best graphics API for your computer?"
+
+- **Yes** — runs the full GPU benchmark and saves the winning API.
+- **No** — skips the benchmark and defaults to OpenGL.
+
+This dialog only appears once (the result is persisted). To change APIs later, go to `Options → Graphics → Graphics Rendering API`.
 
 ### Auto API Detection
 
 When "Auto" is selected and confirmed (ENTER) in the Graphics Settings menu, Psych Engine benchmarks every available graphics API over a 3-second time window — recording per-frame timestamps to measure both sustained FPS and frame time consistency (standard deviation). The API with the best **stability score** (sustained FPS × consistency) is saved and used for all subsequent sessions.
 
-- At first launch (before any benchmark), a fast platform heuristic is used (macOS → Metal, Windows → DirectX 12, Linux → Vulkan).
 - The benchmark runs synchronously and typically completes in ~15 seconds on Windows with 5 APIs (3 seconds per API). On modern GPUs with fewer APIs, it is faster.
 - To re-run the benchmark, select "Auto" and press ENTER again.
 - Results are persisted to the save file and used directly on subsequent launches.

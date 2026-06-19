@@ -311,17 +311,28 @@ FNF-PsychEngine-CustomAPI/
 
 ```
 Options → Graphics → Graphics Rendering API
-  - Auto: 自动测试所有可用 API 的 GPU 帧率并选择最快的
-    （按 ENTER 运行测试；初次启动时使用平台启发式算法）
+  - Auto: 自动测试所有可用 API，选出稳定性得分最高的
+    （按 ENTER 运行测试）
   - Metal / DirectX 12 / DirectX 11 / DirectX 9 / Vulkan
   - OpenGL
 ```
+
+### 首次启动设置
+
+在第一次启动时，标题画面出现之前，Psych Engine 会询问：
+
+> "Looks like it is your first time running the Custom API Psych Engine!
+>  Do you want to do a test for the best graphics API for your computer?"
+
+- **Yes** — 运行完整的 GPU 测试并保存得分最高的 API
+- **No** — 跳过测试，默认使用 OpenGL
+
+此对话框仅出现一次（结果会持久保存）。之后如需更改 API，请前往 `Options → Graphics → Graphics Rendering API`。
 
 ### Auto API 检测
 
 当在图像设置中选择 "Auto" 并按下 ENTER 确认时，Psych Engine 会对每个可用的图形 API 进行 3 秒时间窗口测试 —— 记录每帧时间戳以测量持续帧率和帧时间一致性（标准差）。**稳定性得分**（持续帧率 × 一致性系数）最高的 API 将被保存并用于后续所有会话。
 
-- 初次启动（未运行过测试前）：使用快速平台启发式算法（macOS → Metal, Windows → DirectX 12, Linux → Vulkan）
 - 测试同步运行，在 5 个 API 的 Windows 系统上约需 15 秒（每个 API 3 秒）。现代 GPU 如果可用 API 较少则更快
 - 如需重新测试，再次选择 "Auto" 并按 ENTER 即可
 - 结果会持久保存到设置文件中，下次启动直接使用

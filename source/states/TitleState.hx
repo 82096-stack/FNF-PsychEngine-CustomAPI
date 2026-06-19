@@ -74,14 +74,6 @@ class TitleState extends MusicBeatState
 		{
 			ClientPrefs.loadPrefs();
 			Language.reloadPhrases();
-
-			// First-run graphics API benchmark prompt
-			#if !html5
-			if (ClientPrefs.data.firstRunAPI)
-			{
-				openSubState(new FirstRunAPIState());
-			}
-			#end
 		}
 
 		curWacky = FlxG.random.getObject(getIntroTextShit());

@@ -1,38 +1,30 @@
 package states;
 
 import backend.GraphicsAPI;
-import backend.ClientPrefs;
+import backend.GraphicsAPIType;
 import flixel.FlxG;
 import flixel.FlxSprite;
 import flixel.text.FlxText;
 import flixel.util.FlxColor;
-import flixel.group.FlxGroup.FlxTypedGroup;
-import flixel.input.keyboard.FlxKey;
-import flixel.FlxSubState;
+import flixel.FlxState;
 
 /**
- * First-run dialog shown before TitleState.
+ * First-run dialog shown BEFORE TitleState.
  *
  * Asks the user whether they want to benchmark all available graphics APIs
  * to find the best one for their computer, or skip and use OpenGL.
  *
  * Navigation: LEFT / RIGHT to choose. ACCEPT to confirm.
- * Result is saved to ClientPrefs and the dialog never appears again.
+ * Result is saved and this state is never shown again.
  */
-class FirstRunAPIState extends FlxSubState
+class FirstRunAPIState extends MusicBeatState
 {
 	var bg:FlxSprite;
-	var overlay:FlxSprite;
 	var titleText:FlxText;
 	var questionText:FlxText;
 	var yesText:FlxText;
 	var noText:FlxText;
 	var selectedYes:Bool = true;
-
-	public function new()
-	{
-		super();
-	}
 
 	override function create()
 	{
@@ -75,8 +67,6 @@ class FirstRunAPIState extends FlxSubState
 		noText.x = FlxG.width / 2 + 30;
 		noText.scrollFactor.set(0, 0);
 		add(noText);
-
-		updateSelection();
 	}
 
 	function updateSelection()
@@ -105,6 +95,7 @@ class FirstRunAPIState extends FlxSubState
 		{
 			selectedYes = !selectedYes;
 			updateSelection();
+			FlxG.sound.play(Paths.sound('scrollMenu'));
 		}
 
 		if (FlxG.keys.justPressed.ENTER || FlxG.keys.justPressed.SPACE)
@@ -112,7 +103,6 @@ class FirstRunAPIState extends FlxSubState
 			confirmSelection();
 		}
 
-		// Also support gamepad
 		#if !FLX_NO_GAMEPAD
 		var gamepad = FlxG.gamepads.lastActive;
 		if (gamepad != null)
@@ -121,6 +111,7 @@ class FirstRunAPIState extends FlxSubState
 			{
 				selectedYes = !selectedYes;
 				updateSelection();
+				FlxG.sound.play(Paths.sound('scrollMenu'));
 			}
 			if (gamepad.justPressed.A || gamepad.justPressed.START)
 			{
@@ -132,39 +123,28 @@ class FirstRunAPIState extends FlxSubState
 
 	function confirmSelection()
 	{
-		// Mark that first-run dialog has been shown
-		ClientPrefs.data.firstRunAPI = false;
+		FlxG.sound.play(Paths.sound('confirmMenu'));
+
+		// Mark that first-run dialog has been shown — never again
 		FlxG.save.data.firstRunAPI = false;
 		FlxG.save.flush();
 
 		if (selectedYes)
 		{
-			// Show testing overlay then run benchmark
-			close();
-
-			// We need to defer the benchmark so the substate closes first,
-			// otherwise the screen stays frozen on the dialog during the test.
-			// After this substate closes, TitleState takes over. We can run
-			// the benchmark asynchronously via haxe.Timer.
-			// Actually, the benchmark blocks. So we close, let TitleState render,
-			// then run via a timer.
-			haxe.Timer.delay(function() {
-				var best = GraphicsAPI.benchmarkBestAPI();
-				ClientPrefs.data.graphicsAPI = cast best;
-				FlxG.save.data.graphicsAPI = cast best;
-				FlxG.save.flush();
-				// Switch to the best API
-				GraphicsAPI.switchAPI(best);
-			}, 200);
+			// Run benchmark then proceed to TitleState
+			var best = GraphicsAPI.benchmarkBestAPI();
+			FlxG.save.data.graphicsAPI = cast best;
+			FlxG.save.flush();
+			GraphicsAPI.switchAPI(best);
 		}
 		else
 		{
 			// Skip benchmark, use OpenGL
-			ClientPrefs.data.graphicsAPI = 'OpenGL';
 			FlxG.save.data.graphicsAPI = 'OpenGL';
 			FlxG.save.flush();
 			GraphicsAPI.switchAPI(OpenGL);
-			close();
 		}
+
+		MusicBeatState.switchState(new TitleState());
 	}
 }

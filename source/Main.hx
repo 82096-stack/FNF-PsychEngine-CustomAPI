@@ -9,6 +9,7 @@ import debug.FPSCounter;
 import flixel.graphics.FlxGraphic;
 import flixel.FlxGame;
 import flixel.FlxState;
+import states.FirstRunAPIState;
 import haxe.io.Path;
 import openfl.Assets;
 import openfl.Lib;
@@ -161,16 +162,24 @@ class Main extends Sprite
 		Controls.instance = new Controls();
 		ClientPrefs.loadDefaultKeys();
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
-		addChild(new FlxGame(game.width, game.height, game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
 
-	// Initialize bgfx multi-API rendering backend
-	// Read user's saved API preference (save file bound earlier at line ~94)
-	var savedAPI = FlxG.save.data.graphicsAPI;
-	var initAPI = (savedAPI != null && savedAPI != 'Auto')
-		? GraphicsAPI.resolveAPI(cast(savedAPI, GraphicsAPIType))
-		: GraphicsAPI.detectBestAPI();
-	BgfxWindowManager.init();
-	BgfxFallback.tryInit(game.width, game.height, initAPI, false);
+		// Initialize bgfx BEFORE starting the game loop, so the renderer
+		// is ready when the first state needs it (e.g., for benchmarking).
+		var savedAPI = FlxG.save.data.graphicsAPI;
+		var initAPI = (savedAPI != null && savedAPI != 'Auto')
+			? GraphicsAPI.resolveAPI(cast(savedAPI, GraphicsAPIType))
+			: GraphicsAPI.detectBestAPI();
+		BgfxWindowManager.init();
+		BgfxFallback.tryInit(game.width, game.height, initAPI, false);
+
+		// First-run graphics API benchmark prompt — run before TitleState
+		#if !html5
+		var firstRun = FlxG.save.data.firstRunAPI;
+		if (firstRun == null || firstRun == true)
+			game.initialState = cast FirstRunAPIState;
+		#end
+
+		addChild(new FlxGame(game.width, game.height, game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
 
 	// bgfx frame hooks (preDraw/postDraw) and camera replacement are
 	// deferred until bgfx C library is compiled and linked. Once active,
