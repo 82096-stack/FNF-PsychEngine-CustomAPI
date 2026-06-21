@@ -1,6 +1,6 @@
 ![PsychEngineLogo](docs/img/Logo.png)
 
-**Friday Night Funkin': Psych Engine** — A feature-rich FNF modding engine with multi-API rendering support (Metal, Vulkan, DirectX 12/11/9, OpenGL) and native FFmpeg video playback.
+**Friday Night Funkin': Psych Engine** — A feature-rich FNF modding engine with multi-API rendering support (Metal, Vulkan, DirectX 12/11/9, OpenGL) and hxvlc (libVLC) GPU-accelerated video playback.
 
 > 🇨🇳 [中文文档 (Chinese Documentation)](README_CN.md)
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | **Haxe** | 4.3.6+ | [download](https://haxe.org/download/version/4.3.6) |
 | **git** | any | [download](https://git-scm.com) |
-| **macOS** | Xcode CLT 15+ / nasm | `xcode-select --install` + `brew install nasm` |
+| **macOS** | Xcode CLT 15+ | `xcode-select --install` |
 | **Windows** | Visual Studio 2022 | `VC.Tools.x86.x64` + `Windows10SDK.19041` |
 | **Linux** | g++ 11+ / make / nasm | `sudo apt install g++ make nasm` |
 
@@ -55,6 +55,7 @@ Running `setup/unix.sh` or `setup/windows.bat` automatically installs all depend
 | **tjson** | 1.4.0 | `haxelib install tjson 1.4.0` |
 | **hxdiscord_rpc** | 1.2.4 | `haxelib install hxdiscord_rpc 1.2.4` |
 | **hxcpp** | 4.3.2 | `haxelib install hxcpp 4.3.2` |
+| **hxvlc** | 2.3.0 | `haxelib install hxvlc` |
 
 ### Git Packages
 
@@ -67,9 +68,9 @@ Running `setup/unix.sh` or `setup/windows.bat` automatically installs all depend
 
 ---
 
-## FFmpeg Native Video Playback
+## hxvlc Video Playback
 
-Psych Engine uses a custom **FFmpeg native video decoder** (`source/ffmpeg/`) that replaces hxvlc entirely. No VLC or external players needed — FFmpeg is statically linked into the game binary. Players download and run — nothing else.
+Psych Engine uses **hxvlc (libVLC)** for GPU-accelerated video playback. VLC libraries are automatically bundled with the game — no external players or manual VLC installation needed.
 
 ### Supported Formats
 
@@ -79,65 +80,7 @@ Psych Engine uses a custom **FFmpeg native video decoder** (`source/ffmpeg/`) th
 | **WebM** | VP9 | Vorbis, Opus | `.webm` |
 | **MKV** | H.264 / VP9 | AAC, Vorbis, Opus | `.mkv` |
 
-> Video is decoded to RGBA frames and rendered via BGFX textures. Decoding runs on a dedicated thread — zero main-thread blocking.
-
-### Build FFmpeg Libraries
-
-Before your first build, compile the FFmpeg static libraries:
-
-```bash
-# macOS / Linux
-cd libs/ffmpeg/project
-chmod +x build_ffmpeg_libs.sh
-./build_ffmpeg_libs.sh
-
-# Windows (requires Git Bash or WSL)
-cd libs/ffmpeg/project
-bash build_ffmpeg_libs.sh windows
-```
-
-Build output:
-- `libs/ffmpeg/lib/macos/libavcodec.a` etc.
-- `libs/ffmpeg/lib/windows/x64/avcodec.lib` etc.
-- `libs/ffmpeg/lib/linux/x64/libavcodec.a` etc.
-- `libs/ffmpeg/include/` — public headers
-
-### Linux System FFmpeg
-
-Linux users can also use the system package manager's FFmpeg. Build with `-D FFMPEG_SYSTEM`:
-
-```bash
-# Debian / Ubuntu
-sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev
-
-# Fedora
-sudo dnf install ffmpeg-devel
-
-# Arch
-sudo pacman -S ffmpeg
-
-# Then build with system FFmpeg
-haxelib run lime build linux -D FFMPEG_SYSTEM
-```
-
-### Build Flags
-
-In `Project.xml`:
-
-```xml
-<!-- Enable video playback (macOS, Windows, Linux; excludes 32-bit) -->
-<define name="VIDEOS_ALLOWED" if="windows || linux || android || mac" unless="32bits"/>
-
-<!-- FFmpeg build config (auto-included) -->
-<include name="libs/ffmpeg/project/Build.xml" if="VIDEOS_ALLOWED" />
-
-<!-- Use system FFmpeg instead of static linking (Linux only) -->
-<!-- <define name="FFMPEG_SYSTEM" /> -->
-
-<!-- Optional: enable FFmpeg debug logging (debug builds only) -->
-<!-- Enabled by default in debug builds -->
-<haxedef name="FFMPEG_DEBUG_LOGGING" if="VIDEOS_ALLOWED debug" />
-```
+> Video is decoded and rendered directly on the GPU via libVLC. Audio is handled by VLC's native audio pipeline. Zero CPU overhead for video playback.
 
 ### Lua API
 
@@ -169,37 +112,29 @@ Place a custom event named `playvideo` with the video filename (without extensio
 ┌──────────────────────────────────────────────────────┐
 │  PlayState / Lua (startVideo("videos/intro.mp4"))    │
 ├──────────────────────────────────────────────────────┤
-│  objects.VideoSprite (FlxSpriteGroup + skip UI)      │
-│    └─ ffmpeg.VideoSprite (FlxSprite, BGFX display)   │
-│         ├─ FFmpegVideoDecoder (CFFI → native C++)    │
-│         │    ├─ Decode thread:  avcodec (YUV→RGBA)   │
-│         │    └─ Frame queue:    mutex + condition var │
-│         └─ VideoTexture (BGFX GPU texture lifecycle) │
-├──────────────────────────────────────────────────────┤
-│  FFmpeg (libavcodec / libavformat / libswscale)      │
-├──────────────────────────────────────────────────────┤
-│  BGFX (DirectX 12/11/9 / Metal / Vulkan / OpenGL)    │
-│    BgfxTextureManager → GPU texture → FlxSprite      │
+│  objects.VideoSprite (extends hxvlc.openfl.VideoSprite) │
+│    └─ hxvlc (libVLC)                                 │
+│         ├─ GPU decoding (VideoToolbox / D3D11 / VAAPI) │
+│         ├─ GPU rendering (zero-copy texture)          │
+│         └─ Audio playback (native VLC pipeline)       │
 └──────────────────────────────────────────────────────┘
 ```
 
 Key features:
-- **Dedicated decode thread** — decoding runs on an independent `std::thread`, zero main-thread blocking
-- **Zero-copy frame delivery** — RGBA frames written directly into a reused `BitmapData`, no extra allocations
-- **BGFX texture reuse** — a single `FlxGraphic` is reused for the entire video, only the GPU texture is updated each frame
-- **Automatic resource cleanup** — `destroy()` automatically stops the decode thread and frees all FFmpeg resources
-- **Cross-platform** — Windows (DirectX 12/11/9, Vulkan), macOS (Metal), Linux (Vulkan) all supported
+- **GPU-accelerated** — video decoding and rendering happen entirely on the GPU, zero CPU overhead
+- **Bundled VLC** — VLC libraries ship with the game, players do not need to install anything
+- **Cross-platform** — Windows, macOS, Linux, Android, iOS supported via hxvlc
+- **Broad format support** — all formats VLC supports (MP4, WebM, MKV, and more)
 
 ### Troubleshooting
 
 | Symptom | Cause | Solution |
 |---|---|---|
 | "Video not found" in debug | Video file missing or format unsupported | Ensure video is in `mods/<mod>/videos/` or `assets/videos/`, format `.mp4` or `.webm` |
-| Build error: `'libavformat/avformat.h' file not found` | FFmpeg libraries not built | Run `libs/ffmpeg/project/build_ffmpeg_libs.sh` to build FFmpeg |
-| Link error: undefined reference to `avformat_open_input` | FFmpeg libraries not linked | Verify `.a`/`.lib` files exist under `libs/ffmpeg/lib/<platform>/` |
-| Video stuttering / low FPS | Software decoding bottleneck | Enable hardware acceleration (build script already includes VideoToolbox/DXVA2/VAAPI flags) |
-| Green screen / black screen | Pixel format conversion failure | Check that the video codec is H.264 or VP9 |
-| Linux: builds but runtime symbol errors | System FFmpeg version mismatch | Use `./build_ffmpeg_libs.sh linux` to build static libraries |
+| Video not playing / black screen | VLC libraries not bundled | Install hxvlc via `haxelib install hxvlc` — VLC libs are auto-bundled |
+| Linux: missing VLC dependencies | System VLC not installed | `sudo apt install vlc` (or equivalent for your distro) |
+
+---
 
 ---
 
@@ -247,12 +182,6 @@ FNF-PsychEngine-CustomAPI/
 │   │   ├── PsychCamera.hx           # bgfx camera
 │   │   ├── ClientPrefs.hx           # Settings persistence
 │   │   └── Paths.hx                 # Asset paths (supports mp4 + webm)
-│   ├── ffmpeg/                   # FFmpeg native video system
-│   │   ├── VideoDecoder.h           # C++ decoder header
-│   │   ├── VideoDecoder.cpp         # C++ decoder implementation (avcodec+swscale)
-│   │   ├── FFmpegVideoDecoder.hx    # Haxe CFFI bridge
-│   │   ├── VideoTexture.hx          # BGFX video texture management
-│   │   └── VideoSprite.hx           # FlxSprite video display
 │   ├── objects/                  # Game objects
 │   │   └── VideoSprite.hx           # Video playback wrapper (skip UI + callbacks)
 │   ├── states/                   # Game states
@@ -268,15 +197,6 @@ FNF-PsychEngine-CustomAPI/
 │   │   │   ├── bgfx_bridge.cpp      # Platform window handle bridge
 │   │   │   └── build_bgfx_libs.sh   # bgfx build script
 │   │   └── lib/                     # Build artifacts
-│   ├── ffmpeg/                   # FFmpeg video decode library
-│   │   ├── project/
-│   │   │   ├── Build.xml            # hxcpp linker config
-│   │   │   └── build_ffmpeg_libs.sh # FFmpeg build script
-│   │   ├── include/                 # FFmpeg headers (after build)
-│   │   └── lib/                     # Build artifacts
-│   │       ├── macos/
-│   │       ├── windows/x64/
-│   │       └── linux/x64/
 ├── Project.xml                   # Lime project config
 ├── setup/                        # Platform setup scripts
 │   ├── unix.sh
@@ -346,7 +266,6 @@ Comment out or delete the corresponding lines in `Project.xml`:
 | Lua scripting | `LUA_ALLOWED` |
 | HScript | `HSCRIPT_ALLOWED` |
 | Video playback | `VIDEOS_ALLOWED` |
-| FFmpeg system libs (Linux) | `FFMPEG_SYSTEM` |
 | Discord RPC | `DISCORD_ALLOWED` |
 | Mod support | `MODS_ALLOWED` |
 | Achievements | `ACHIEVEMENTS_ALLOWED` |
@@ -357,7 +276,8 @@ Comment out or delete the corresponding lines in `Project.xml`:
 
 - **Psych Engine GitHub:** [ShadowMario/FNF-PsychEngine](https://github.com/ShadowMario/FNF-PsychEngine)
 - **Psych Engine Lua Wiki:** [shadowmario.github.io/psychengine.lua](https://shadowmario.github.io/psychengine.lua)
-- **FFmpeg:** [ffmpeg.org](https://ffmpeg.org)
+- **hxvlc:** [github.com/MAJigsaw77/hxvlc](https://github.com/MAJigsaw77/hxvlc)
+- **VLC / libVLC:** [videolan.org](https://www.videolan.org/vlc/libvlc.html)
 - **Haxe:** [haxe.org](https://haxe.org)
 - **OpenFL:** [openfl.org](https://openfl.org)
 - **Lime:** [github.com/openfl/lime](https://github.com/openfl/lime)

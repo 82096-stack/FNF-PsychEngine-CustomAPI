@@ -1,6 +1,6 @@
 ![PsychEngineLogo](docs/img/Logo.png)
 
-**Friday Night Funkin': Psych Engine** — 功能丰富的 FNF 模组引擎，支持多 API 渲染（Metal, Vulkan, DirectX 12/11/9, OpenGL）和原生 FFmpeg 视频播放。
+**Friday Night Funkin': Psych Engine** — 功能丰富的 FNF 模组引擎，支持多 API 渲染（Metal, Vulkan, DirectX 12/11/9, OpenGL）和 hxvlc (libVLC) GPU 加速视频播放。
 
 > 🇺🇸 [English Documentation](README.md)
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | **Haxe** | 4.3.6+ | [下载](https://haxe.org/download/version/4.3.6) |
 | **git** | 任意 | [下载](https://git-scm.com) |
-| **macOS** | Xcode CLT 15+ / nasm | `xcode-select --install` + `brew install nasm` |
+| **macOS** | Xcode CLT 15+ | `xcode-select --install` |
 | **Windows** | Visual Studio 2022 | `VC.Tools.x86.x64` + `Windows10SDK.19041` |
 | **Linux** | g++ 11+ / make / nasm | `sudo apt install g++ make nasm` |
 
@@ -55,6 +55,7 @@ haxelib run lime build windows
 | **tjson** | 1.4.0 | `haxelib install tjson 1.4.0` |
 | **hxdiscord_rpc** | 1.2.4 | `haxelib install hxdiscord_rpc 1.2.4` |
 | **hxcpp** | 4.3.2 | `haxelib install hxcpp 4.3.2` |
+| **hxvlc** | 2.3.0 | `haxelib install hxvlc` |
 
 ### Git 包
 
@@ -67,9 +68,9 @@ haxelib run lime build windows
 
 ---
 
-## FFmpeg 原生视频播放
+## hxvlc 视频播放
 
-Psych Engine 使用自研的 **FFmpeg 原生视频解码器**（`source/ffmpeg/`）替代了 hxvlc，无需安装 VLC 或任何外部播放器。FFmpeg 库静态链接到游戏二进制文件中，玩家无需额外安装任何软件。
+Psych Engine 使用 **hxvlc (libVLC)** 实现 GPU 加速视频播放。VLC 库会自动打包进游戏——无需额外安装 VLC 或任何外部播放器。
 
 ### 支持的格式
 
@@ -79,65 +80,7 @@ Psych Engine 使用自研的 **FFmpeg 原生视频解码器**（`source/ffmpeg/`
 | **WebM** | VP9 | Vorbis, Opus | `.webm` |
 | **MKV** | H.264 / VP9 | AAC, Vorbis, Opus | `.mkv` |
 
-> 视频解码为 RGBA 帧后通过 BGFX 纹理渲染。解码在独立线程中运行，不会阻塞主线程。
-
-### 编译 FFmpeg 库
-
-首次编译前，需要先编译 FFmpeg 静态库：
-
-```bash
-# macOS / Linux
-cd libs/ffmpeg/project
-chmod +x build_ffmpeg_libs.sh
-./build_ffmpeg_libs.sh
-
-# Windows（需要 Git Bash 或 WSL）
-cd libs/ffmpeg/project
-bash build_ffmpeg_libs.sh windows
-```
-
-构建产物放置在：
-- `libs/ffmpeg/lib/macos/libavcodec.a` 等
-- `libs/ffmpeg/lib/windows/x64/avcodec.lib` 等
-- `libs/ffmpeg/lib/linux/x64/libavcodec.a` 等
-- `libs/ffmpeg/include/` — 公共头文件
-
-### Linux 系统 FFmpeg
-
-Linux 用户也可使用系统包管理器安装的 FFmpeg，在编译时添加 `-D FFMPEG_SYSTEM`：
-
-```bash
-# Debian / Ubuntu
-sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev
-
-# Fedora
-sudo dnf install ffmpeg-devel
-
-# Arch
-sudo pacman -S ffmpeg
-
-# 然后编译时指定系统 FFmpeg
-haxelib run lime build linux -D FFMPEG_SYSTEM
-```
-
-### 编译标志
-
-在 `Project.xml` 中：
-
-```xml
-<!-- 启用视频播放（macOS, Windows, Linux; 排除 32-bit） -->
-<define name="VIDEOS_ALLOWED" if="windows || linux || android || mac" unless="32bits"/>
-
-<!-- FFmpeg 构建配置（自动包含） -->
-<include name="libs/ffmpeg/project/Build.xml" if="VIDEOS_ALLOWED" />
-
-<!-- 使用系统 FFmpeg 而非静态链接版本 (仅 Linux) -->
-<!-- <define name="FFMPEG_SYSTEM" /> -->
-
-<!-- 可选：启用 FFmpeg 调试日志（仅 debug 构建） -->
-<!-- 已在 debug 构建中默认开启 -->
-<haxedef name="FFMPEG_DEBUG_LOGGING" if="VIDEOS_ALLOWED debug" />
-```
+> 视频通过 libVLC 直接在 GPU 上解码和渲染。音频由 VLC 原生音频管线处理。视频播放零 CPU 开销。
 
 ### Lua 接口
 
@@ -146,7 +89,7 @@ haxelib run lime build linux -D FFMPEG_SYSTEM
 startVideo("intro", true, false, false, true)
 -- 参数: (videoName, canSkip, forMidSong, shouldLoop, playOnLoad)
 
--- 新增：视频元数据查询
+-- 视频元数据查询
 local t = getVideoTime()       -- 当前播放位置（秒）
 local d = getVideoDuration()   -- 总时长（秒）
 seekVideo(10.5)                -- 跳转到 10.5 秒
@@ -169,37 +112,29 @@ seekVideo(10.5)                -- 跳转到 10.5 秒
 ┌──────────────────────────────────────────────────────┐
 │  PlayState / Lua (startVideo("videos/intro.mp4"))    │
 ├──────────────────────────────────────────────────────┤
-│  objects.VideoSprite (FlxSpriteGroup + skip UI)      │
-│    └─ ffmpeg.VideoSprite (FlxSprite, BGFX display)   │
-│         ├─ FFmpegVideoDecoder (CFFI → native C++)    │
-│         │    ├─ Decode thread:  avcodec (YUV→RGBA)   │
-│         │    └─ Frame queue:    mutex + condition var │
-│         └─ VideoTexture (BGFX GPU texture lifecycle) │
-├──────────────────────────────────────────────────────┤
-│  FFmpeg (libavcodec / libavformat / libswscale)      │
-├──────────────────────────────────────────────────────┤
-│  BGFX (DirectX 12/11/9 / Metal / Vulkan / OpenGL)    │
-│    BgfxTextureManager → GPU texture → FlxSprite      │
+│  objects.VideoSprite (继承 hxvlc.openfl.VideoSprite) │
+│    └─ hxvlc (libVLC)                                 │
+│         ├─ GPU 解码（VideoToolbox / D3D11 / VAAPI）   │
+│         ├─ GPU 渲染（零拷贝纹理）                      │
+│         └─ 音频播放（VLC 原生管线）                    │
 └──────────────────────────────────────────────────────┘
 ```
 
 关键特性：
-- **解码线程分离** — 解码在独立 `std::thread` 中运行，主线程零阻塞
-- **零拷贝帧传输** — RGBA 帧直接写入复用 `BitmapData`，无额外分配
-- **BGFX 纹理复用** — 同一 `FlxGraphic` 全程复用，仅每帧更新 GPU 纹理
-- **自动资源回收** — `destroy()` 自动停止解码线程并释放所有 FFmpeg 资源
-- **跨平台** — Windows (DirectX 12/11/9, Vulkan), macOS (Metal), Linux (Vulkan) 全支持
+- **GPU 加速**——视频解码和渲染全程在 GPU 上进行，零 CPU 开销
+- **VLC 打包**——VLC 库随游戏一起发布，玩家无需额外安装
+- **跨平台**——hxvlc 支持 Windows、macOS、Linux、Android、iOS
+- **广泛格式**——支持 VLC 能播放的所有格式
 
 ### 故障排除
 
 | 症状 | 原因 | 解决方案 |
 |---|---|---|
 | "Video not found" in debug | 视频文件不存在或格式不支持 | 确认视频在 `mods/<mod>/videos/` 或 `assets/videos/`，格式为 `.mp4` 或 `.webm` |
-| 编译错误: `'libavformat/avformat.h' file not found` | FFmpeg 库未编译 | 运行 `libs/ffmpeg/project/build_ffmpeg_libs.sh` 编译 FFmpeg |
-| 链接错误: undefined reference to `avformat_open_input` | FFmpeg 库未链接 | 确认 `libs/ffmpeg/lib/<platform>/` 下有对应 `.a`/`.lib` 文件 |
-| 视频播放卡顿 / 帧率低 | 软件解码性能不足 | 启用硬件加速（构建脚本已包含 VideoToolbox/DXVA2/VAAPI 标志） |
-| 绿屏 / 黑屏 | 像素格式转换失败 | 检查视频编码是否为 H.264 或 VP9 |
-| Linux: 编译成功但运行时找不到符号 | 系统 FFmpeg 版本不匹配 | 使用 `./build_ffmpeg_libs.sh linux` 编译静态库 |
+| 视频不播放 / 黑屏 | VLC 库未打包 | 运行 `haxelib install hxvlc`——VLC 库会自动打包 |
+| Linux: 缺少 VLC 依赖 | 系统未装 VLC | `sudo apt install vlc`（或其他发行版对应命令） |
+
+---
 
 ---
 
@@ -247,12 +182,6 @@ FNF-PsychEngine-CustomAPI/
 │   │   ├── PsychCamera.hx           # bgfx 相机
 │   │   ├── ClientPrefs.hx           # 设置存储
 │   │   └── Paths.hx                 # 资源路径（支持 mp4 + webm）
-│   ├── ffmpeg/                   # FFmpeg 原生视频系统
-│   │   ├── VideoDecoder.h           # C++ 解码器头文件
-│   │   ├── VideoDecoder.cpp         # C++ 解码器实现（avcodec+swscale）
-│   │   ├── FFmpegVideoDecoder.hx    # Haxe CFFI 桥接
-│   │   ├── VideoTexture.hx          # BGFX 视频纹理管理
-│   │   └── VideoSprite.hx           # FlxSprite 视频显示
 │   ├── objects/                  # 游戏对象
 │   │   └── VideoSprite.hx           # 视频播放封装（skip UI + 回调）
 │   ├── states/                   # 游戏状态
@@ -268,15 +197,6 @@ FNF-PsychEngine-CustomAPI/
 │   │   │   ├── bgfx_bridge.cpp      # 平台窗口句柄桥接
 │   │   │   └── build_bgfx_libs.sh   # bgfx 编译脚本
 │   │   └── lib/                     # 编译产物
-│   ├── ffmpeg/                   # FFmpeg 视频解码库
-│   │   ├── project/
-│   │   │   ├── Build.xml            # hxcpp 链接配置
-│   │   │   └── build_ffmpeg_libs.sh # FFmpeg 编译脚本
-│   │   ├── include/                 # FFmpeg 头文件（编译后）
-│   │   └── lib/                     # 编译产物
-│   │       ├── macos/
-│   │       ├── windows/x64/
-│   │       └── linux/x64/
 ├── Project.xml                   # Lime 项目配置
 ├── setup/                        # 平台安装脚本
 │   ├── unix.sh
@@ -346,7 +266,6 @@ Options → Graphics → Graphics Rendering API
 | Lua 脚本 | `LUA_ALLOWED` |
 | HScript | `HSCRIPT_ALLOWED` |
 | 视频播放 | `VIDEOS_ALLOWED` |
-| FFmpeg 系统库 (Linux) | `FFMPEG_SYSTEM` |
 | Discord RPC | `DISCORD_ALLOWED` |
 | Mod 支持 | `MODS_ALLOWED` |
 | 成就系统 | `ACHIEVEMENTS_ALLOWED` |
@@ -357,7 +276,8 @@ Options → Graphics → Graphics Rendering API
 
 - **Psych Engine GitHub:** [ShadowMario/FNF-PsychEngine](https://github.com/ShadowMario/FNF-PsychEngine)
 - **Psych Engine Lua Wiki:** [shadowmario.github.io/psychengine.lua](https://shadowmario.github.io/psychengine.lua)
-- **FFmpeg:** [ffmpeg.org](https://ffmpeg.org)
+- **hxvlc:** [github.com/MAJigsaw77/hxvlc](https://github.com/MAJigsaw77/hxvlc)
+- **VLC / libVLC:** [videolan.org](https://www.videolan.org/vlc/libvlc.html)
 - **Haxe:** [haxe.org](https://haxe.org)
 - **OpenFL:** [openfl.org](https://openfl.org)
 - **Lime:** [github.com/openfl/lime](https://github.com/openfl/lime)

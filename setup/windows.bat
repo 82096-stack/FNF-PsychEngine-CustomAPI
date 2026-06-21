@@ -36,6 +36,9 @@ haxelib install hxdiscord_rpc 1.2.4
 echo   hxcpp 4.3.2
 haxelib install hxcpp 4.3.2
 
+echo   hxvlc 2.3.0
+haxelib install hxvlc 2.3.0
+
 echo.
 echo [2/3] Installing git packages (pinned commits)...
 echo.
@@ -68,25 +71,3 @@ echo ======================================================
 echo   NEXT: Build native libraries before first compile
 echo ======================================================
 echo.
-echo   [Required] FFmpeg - native video decoder:
-echo     cd libs/ffmpeg/project
-echo     bash build_ffmpeg_libs.sh windows
-echo     (Requires Git Bash or WSL)
-echo.
-echo   [Required] bgfx - multi-API rendering backend:
-echo     cd libs/hxbgfx/project
-echo     bash build_bgfx_libs.sh
-echo     (Requires Git Bash or WSL)
-echo.
-echo ------------------------------------------------------
-echo   Build command:
-echo     haxelib run lime build windows
-echo ------------------------------------------------------
-echo.
-echo   Graphics backends (runtime-switchable):
-echo     Windows: DirectX 12, Vulkan, OpenGL
-echo.
-echo   Video formats (native FFmpeg, no VLC required):
-echo     MP4 (H.264), WebM (VP9), MKV
-echo ======================================================
-pause

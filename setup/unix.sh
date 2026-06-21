@@ -42,6 +42,9 @@ haxelib install hxdiscord_rpc 1.2.4
 echo "  hxcpp 4.3.2"
 haxelib install hxcpp 4.3.2
 
+echo "  hxvlc 2.3.0"
+haxelib install hxvlc 2.3.0
+
 echo .
 echo "[3/3] Installing git packages (pinned commits)..."
 
@@ -70,17 +73,6 @@ echo "════════════════════════�
 echo "  NEXT: Build native libraries before first compile"
 echo "══════════════════════════════════════════════════════"
 echo .
-echo "  [Required] FFmpeg — native video decoder:"
-echo "    cd libs/ffmpeg/project"
-echo "    ./build_ffmpeg_libs.sh"
-echo .
-if [ "$(uname)" = "Linux" ]; then
-	echo "    Linux users may also use system FFmpeg:"
-	echo "      sudo apt install libavcodec-dev libavformat-dev \\"
-	echo "        libavutil-dev libswscale-dev libswresample-dev"
-	echo "      Then build with: -D FFMPEG_SYSTEM"
-	echo .
-fi
 echo "  [Required] bgfx — multi-API rendering backend:"
 echo "    cd libs/hxbgfx/project"
 echo "    ./build_bgfx_libs.sh"
@@ -98,6 +90,11 @@ elif [ "$(uname)" = "Linux" ]; then
 	echo "    Linux:   Vulkan, OpenGL"
 fi
 echo .
-echo "  Video formats (native FFmpeg, no VLC required):"
-echo "    MP4 (H.264), WebM (VP9), MKV"
+echo "  Video: hxvlc (libVLC) — GPU-accelerated video playback"
+echo "    macOS: VLC libraries are auto-bundled by haxelib. No extra setup needed."
+echo "    Linux: libVLC uses system shared libraries — install VLC first:"
+echo "      sudo apt install vlc        # Ubuntu / Debian"
+echo "      sudo dnf install vlc        # Fedora"
+echo .
+echo "  Video formats: MP4 (H.264), WebM (VP9), MKV, and more"
 echo ======================================================
