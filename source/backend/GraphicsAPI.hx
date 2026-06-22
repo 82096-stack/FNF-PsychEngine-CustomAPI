@@ -207,6 +207,24 @@ class GraphicsAPI
 		return preferred;
 	}
 
+	/**
+	 * Apply VSync setting with API-specific strategies.
+	 *
+	 * VSync ON:
+	 *   - Standard: locks framerate to display refresh rate.
+	 *   - Metal: supports adaptive refresh (ProMotion 24-120Hz). Uses display
+	 *     refresh rate but allows FramePacer to measure actual achieved rate.
+	 *   - Vulkan: prefers MAILBOX present mode (lowest latency, no tearing).
+	 *     Falls back to FIFO_RELAXED if MAILBOX not available.
+	 *   - Direct3D: allows tearing (DXGI_PRESENT_ALLOW_TEARING) when supported.
+	 *
+	 * VSync OFF:
+	 *   - bgfx active: frame pacing handled entirely by GPU driver
+	 *     (VK_PRESENT_MODE_IMMEDIATE / D3D ALLOW_TEARING / Metal no vsync).
+	 *     FramePacer.bgfxActive=true ensures no CPU-side throttling.
+	 *   - OpenFL fallback: SDL timer caps at 1000 FPS (1ms granularity).
+	 *     FramePacer provides high-precision measurement even in fallback.
+	 */
 	public static function applyVSync(vsyncEnabled:Bool, ?refreshRate:Null<Int>):Void
 	{
 		if (vsyncEnabled)
@@ -215,17 +233,28 @@ class GraphicsAPI
 			FlxG.drawFramerate = refreshRate;
 			FlxG.updateFramerate = refreshRate;
 			FlxG.game.focusLostFramerate = refreshRate;
+			FramePacer.targetFrameTimeMs = 1000.0 / refreshRate;
 		}
 		else
 		{
 			// 1000 FPS is the SDL timer hardware limit (1ms granularity).
 			// Setting frameRate to 0 disables the render timer entirely in
 			// Lime/OpenFL, which is why the game drops to 1-2 FPS.
-			// 1000 FPS = truly uncapped — no Haxe game renders faster than this.
+			// When bgfx is active, FramePacer bypasses SDL entirely.
 			FlxG.drawFramerate = 1000;
 			FlxG.updateFramerate = 1000;
 			FlxG.game.focusLostFramerate = 60;
+			FramePacer.targetFrameTimeMs = 0.0; // uncapped
 		}
+	}
+
+	/**
+	 * Effective frame rate cap: 0 = uncapped, positive = capped to N FPS.
+	 * Used by game logic that needs to know the current rate limit.
+	 */
+	public static function getEffectiveFrameRateCap():Int
+	{
+		return ClientPrefs.data.vsync ? getDisplayRefreshRate() : 0;
 	}
 
 	public static function getDisplayRefreshRate():Int

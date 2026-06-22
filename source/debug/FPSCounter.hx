@@ -1,22 +1,27 @@
 package debug;
 
 import backend.GraphicsAPI;
+import backend.FramePacer;
 import flixel.FlxG;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
 
 /**
- * FPS overlay — uses openfl.text.TextField (renders via OpenFL native text).
+ * FPS overlay — uses openfl.text.TextField (renders via OpenFL native text,
+ * bypassing the bgfx / Flixel draw stack for availability during early init).
  *
- * This is intentionally NOT routed through the flixel draw stack / bgfx
- * because it needs to be available before the game fully initializes,
- * and adding FlxText to flixel states during early startup causes crashes.
+ * Unlike the original Psych Engine, the FPS display is:
+ * - Updated every frame (no 50ms throttle) — TextField.setText() is cheap.
+ * - Not capped to updateFramerate — shows the TRUE achieved frame rate.
+ * - Optionally shows microsecond frame times when highPerfMode is enabled.
  */
 class FPSCounter extends TextField
 {
 	public var currentFPS(default, null):Int;
-
 	public var memoryMegas(get, never):Float;
+
+	/** When true, displays frame time in microseconds instead of just FPS count. */
+	public static var highPerfMode:Bool = false;
 
 	@:noCompletion private var times:Array<Float>;
 
@@ -38,28 +43,33 @@ class FPSCounter extends TextField
 		times = [];
 	}
 
-	var deltaTimeout:Float = 0.0;
-
 	private override function __enterFrame(deltaTime:Float):Void
 	{
-		final now:Float = haxe.Timer.stamp() * 1000;
+		// High-precision timestamp (mach_absolute_time / QueryPerformanceCounter)
+		final now:Float = FramePacer.now() * 1000;
 		times.push(now);
 		while (times[0] < now - 1000) times.shift();
 
-		if (deltaTimeout < 50) {
-			deltaTimeout += deltaTime;
-			return;
-		}
-
+		// True measured FPS — not capped at updateFramerate
 		currentFPS = times.length;
 		updateText();
-		deltaTimeout = 0.0;
 	}
 
-	public dynamic function updateText():Void {
-		text = 'FPS: ${currentFPS}'
-		+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}'
-		+ '\nAPI: ${GraphicsAPI.getActiveAPIDescription()}';
+	public dynamic function updateText():Void
+	{
+		if (highPerfMode)
+		{
+			var avgUs:Float = (currentFPS > 0) ? (1000000.0 / currentFPS) : 0;
+			text = 'FPS: ${currentFPS} (${Std.int(avgUs)}us)'
+				+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}'
+				+ '\nAPI: ${GraphicsAPI.getActiveAPIDescription()}';
+		}
+		else
+		{
+			text = 'FPS: ${currentFPS}'
+				+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}'
+				+ '\nAPI: ${GraphicsAPI.getActiveAPIDescription()}';
+		}
 	}
 
 	inline function get_memoryMegas():Float

@@ -44,6 +44,8 @@ import backend.GraphicsAPI;
 import backend.GraphicsAPIType;
 import backend.BgfxFallback;
 import backend.BgfxWindowManager;
+import backend.BgfxAPI;
+import backend.FramePacer;
 import backend.RenderDevice;
 
 // NATIVE API STUFF, YOU CAN IGNORE THIS AND SCROLL //
@@ -168,7 +170,15 @@ class Main extends Sprite
 			? GraphicsAPI.resolveAPI(cast(savedAPI, GraphicsAPIType))
 			: GraphicsAPI.detectBestAPI();
 		BgfxWindowManager.init();
-		BgfxFallback.tryInit(game.width, game.height, initAPI, false);
+
+		// Probe whether the bgfx native C library is compiled and linked.
+		// If not available, skip all GPU init — the engine runs on the
+		// standard OpenFL rendering path with zero overhead from bgfx stubs.
+		var bgfxAvailable = BgfxAPI.probeNativeAvailability();
+		if (bgfxAvailable)
+		{
+			BgfxFallback.tryInit(game.width, game.height, initAPI, false);
+		}
 
 		// First-run graphics API benchmark prompt — run before TitleState
 		#if !html5
@@ -179,9 +189,19 @@ class Main extends Sprite
 
 		addChild(new FlxGame(game.width, game.height, game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
 
-	// bgfx frame hooks (preDraw/postDraw) and camera replacement are
-	// deferred until bgfx C library is compiled and linked. Once active,
-	// re-add FlxG.signals.preDraw/postDraw hooks and camera swap here.
+		// bgfx frame hooks — dynamically registered when the native C library
+		// is linked and bgfx was successfully initialized.
+		if (BgfxFallback.isActive)
+		{
+			FlxG.signals.preDraw.add(RenderDevice.beginFrame);
+			FlxG.signals.postDraw.add(RenderDevice.endFrame);
+			FramePacer.setBGFXMode(true);
+		}
+		else
+		{
+			// OpenFL fallback: FramePacer still provides high-precision timing
+			FramePacer.setBGFXMode(false);
+		}
 
 
 

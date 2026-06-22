@@ -66,10 +66,16 @@ class RenderDevice
 	public static inline var VIEW_MAIN:Int  = 1;
 	public static inline var VIEW_CAM0:Int  = 2;
 
+	// Cached vertex layout (avoids null check per draw call)
+	static var _cachedLayout:BgfxVertexLayout = null;
+	// Reusable transient vertex buffer (avoids allocation per draw call)
+	static var _reusableTVB:BgfxTransientVertexBuffer = null;
+
 	public static function init(width:Int, height:Int, api:GraphicsAPIType, vsync:Bool = false):Bool
 	{
 		if (initialized) return true;
 		BgfxVertexLayoutManager.invalidate();
+		_cachedLayout = null;
 		var init = new BgfxInit();
 		init.type = apiToRendererType(api);
 		init.platformData.nwh = BgfxAPI.hxGetNativeWindowHandle();
@@ -78,15 +84,21 @@ class RenderDevice
 		res.width = width; res.height = height; res.format = BGRA8;
 		res.reset = vsync ? VSync : 0;
 		res.reset |= FlipAfterRender;
+		res.numBackBuffers = 2;
+		// Allow CPU to pipeline up to 2 frames ahead of GPU (Metal / Vulkan / D3D12)
+		res.maxFrameLatency = 2;
 		init.resolution = res;
 		var limits = new BgfxInitLimits();
 		limits.transientVbSize = 16 * 1024 * 1024;
 		limits.transientIbSize = 4 * 1024 * 1024;
+		// Enable multi-threaded command recording when bgfx supports it
+		limits.maxEncoders = 2;
 		init.limits = limits;
 		if (!BgfxAPI.init(init)) { trace('RenderDevice: init failed'); return false; }
 		initialized = true; activeAPI = api;
 		setupView(width, height);
 		trace('RenderDevice: initialized with ${api}');
+		FramePacer.setBGFXMode(true);
 		return true;
 	}
 
@@ -112,20 +124,27 @@ class RenderDevice
 
 	/**
 	 * Called at the start of each frame (via FlxG.signals.preDraw).
-	 * Touches VIEW_CLEAR to ensure it's processed, and clears
-	 * per-view projection caches for the new frame.
+	 * Touches VIEW_CLEAR, resets the draw batcher, and records frame timing.
 	 */
 	public static function beginFrame():Void
 	{
 		if (!initialized) return;
+		FramePacer.beginFrame();
+		BgfxDrawBatcher.beginFrame();
 		BgfxAPI.touch(VIEW_CLEAR);
 	}
 
 	/**
 	 * Called at the end of each frame (via FlxG.signals.postDraw).
-	 * Submits the bgfx frame to the GPU.
+	 * Flushes all batched draws and submits the bgfx frame to the GPU.
 	 */
-	public static function endFrame():Void { if (initialized) BgfxAPI.frame(false); }
+	public static function endFrame():Void
+	{
+		if (!initialized) return;
+		BgfxDrawBatcher.flushAll();
+		BgfxAPI.frame(false);
+		FramePacer.endFrame();
+	}
 
 	public static function switchAPI(newAPI:GraphicsAPIType, width:Int, height:Int):Bool
 	{
@@ -315,26 +334,30 @@ class RenderDevice
 	{
 		if (!initialized || numVertices == 0) return;
 
-		var layout = BgfxVertexLayoutManager.get2DLayout();
-		if (layout == null) return;
+		// Cached vertex layout (built once, reused every draw call)
+		if (_cachedLayout == null)
+			_cachedLayout = BgfxVertexLayoutManager.get2DLayout();
+		if (_cachedLayout == null) return;
 
-		var tvb = new BgfxTransientVertexBuffer();
-		BgfxAPI.allocTransientVertexBuffer(tvb, numVertices, layout);
+		// Reusable transient vertex buffer (pool, avoid per-call allocation)
+		if (_reusableTVB == null)
+			_reusableTVB = new BgfxTransientVertexBuffer();
+		var tvb = _reusableTVB;
+		BgfxAPI.allocTransientVertexBuffer(tvb, numVertices, _cachedLayout);
 		if (tvb.size == 0) return;
 
-		// Copy vertex data into the transient vertex buffer.
-		// With stubbed BgfxAPI, tvb.data is set by allocTransientVertexBuffer.
-		// When CFFI is fully wired, tvb.data will be a cpp.RawPointer and we
-		// use cpp.NativeMem.setBytes or untyped __cpp__('memcpy') for the copy.
+		// Copy vertex data into the transient vertex buffer
 		tvb.data = vertices;
 		tvb.size = numVertices * 20; // 20 bytes per vertex
 
-		BgfxAPI.setState(blendState(blend), 0);
+		// O(1) map lookup — faster than switch branching for hot path
+		BgfxAPI.setState(BLEND_MAP.get(blend), 0);
 		if (tex != 0)
 			BgfxAPI.setTexture(0, BgfxShaderManager.getTextureSampler(), tex, 0);
 
-		// Set per-view projection if available; otherwise use the default ortho
-		var proj = viewProjections.exists(viewId) ? viewProjections.get(viewId) : projMatrix;
+		// Single map lookup (get() returns null if missing, avoiding exists()+get()
+		var proj = viewProjections.get(viewId);
+		if (proj == null) proj = projMatrix;
 		BgfxAPI.setViewTransform(viewId, null, proj);
 
 		BgfxAPI.touch(viewId);
@@ -397,61 +420,40 @@ class RenderDevice
 	}
 
 	// ==================================================================
-	// BLEND STATE MAPPING
+	// BLEND STATE MAPPING — precomputed O(1) array lookup
 	// ==================================================================
+	// bgfx blend state encoding:
+	//   BGFX_STATE_BLEND_ALPHA      = 0x00100010  (src=SRC_ALPHA, dst=INV_SRC_ALPHA)
+	//   BGFX_STATE_BLEND_ADD        = 0x00200010
+	//   BGFX_STATE_BLEND_MULTIPLY   = 0x00400010
+	//   BGFX_STATE_BLEND_SCREEN     = 0x00800010
+	//   BGFX_STATE_BLEND_SUBTRACT   = 0x01000010
+	//   BGFX_STATE_WRITE_RGBA       = 0x0000000F
+	static final WRMASK:Int   = 0x0000000F; // WRITE_R | WRITE_G | WRITE_B | WRITE_A
+	static final B_ALPHA:Int  = 0x00100010;
+	static final B_ADD:Int    = 0x00200010;
+	static final B_MULTIPLY:Int = 0x00400010;
+	static final B_SCREEN:Int = 0x00800010;
+	static final B_SUBTRACT:Int = 0x01000010;
 
-	/**
-	 * Maps flixel/OpenFL blend modes to bgfx state bits.
-	 *
-	 * bgfx blend state encoding (lower 24 bits):
-	 *   Bits 0-3:   RGB source factor
-	 *   Bits 4-7:   RGB destination factor
-	 *   Bits 8-11:  RGB operation
-	 *   Bits 12-15: Alpha source factor
-	 *   Bits 16-19: Alpha destination factor
-	 *   Bits 20-23: Alpha operation
-	 *   Bit  24:    Separate alpha blend
-	 *
-	 * Common presets (defined in bgfx.h):
-	 *   BGFX_STATE_BLEND_ZERO       = 0x00000000
-	 *   BGFX_STATE_BLEND_ALPHA      = 0x00100000  (src=SRC_ALPHA, dst=INV_SRC_ALPHA)
-	 *   BGFX_STATE_BLEND_ADD        = 0x00200000  (src=SRC_ALPHA, dst=ONE)
-	 *   BGFX_STATE_BLEND_MULTIPLY   = 0x00400000  (src=DEST_COLOR, dst=ZERO)
-	 *   BGFX_STATE_BLEND_SCREEN     = 0x00800000  (src=ONE, dst=INV_SRC_COLOR)
-	 *   BGFX_STATE_BLEND_SUBTRACT   = 0x01000000  (src=SRC_ALPHA, dst=ONE, op=REV_SUB)
-	 *   BGFX_STATE_WRITE_R          = 0x00000001
-	 *   BGFX_STATE_WRITE_G          = 0x00000002
-	 *   BGFX_STATE_WRITE_B          = 0x00000004
-	 *   BGFX_STATE_WRITE_A          = 0x00000008
-	 *   BGFX_STATE_BLEND_INDEPENDENT = 0x01000000
-	 */
-	static function blendState(blend:BlendMode):Int
+	/** Precomputed blend state map — O(1) lookup, avoids switch branching in hot path. */
+	static final BLEND_MAP:Map<BlendMode, Int> = [
+		ADD       => WRMASK | B_ADD,
+		MULTIPLY  => WRMASK | B_MULTIPLY,
+		SCREEN    => WRMASK | B_SCREEN,
+		SUBTRACT  => WRMASK | B_SUBTRACT,
+		DARKEN    => WRMASK | B_MULTIPLY,
+		LIGHTEN   => WRMASK | B_SCREEN,
+		DIFFERENCE => WRMASK | B_ALPHA,
+		OVERLAY   => WRMASK | B_ALPHA,
+		HARDLIGHT => WRMASK | B_ALPHA,
+		NORMAL    => WRMASK | B_ALPHA,
+	];
+
+	/** Fallback blend state for unmapped modes. */
+	static inline function blendState(blend:BlendMode):Int
 	{
-		var WR:Int    = 0x00000001; // BGFX_STATE_WRITE_R
-		var WG:Int    = 0x00000002; // BGFX_STATE_WRITE_G
-		var WB:Int    = 0x00000004; // BGFX_STATE_WRITE_B
-		var WA:Int    = 0x00000008; // BGFX_STATE_WRITE_A
-		var WRGB:Int  = WR | WG | WB;
-		var WMASK:Int = WRGB | WA;
-
-		var B_ZERO:Int       = 0x00000010;
-		var B_ALPHA:Int      = 0x00100010; // BGFX_STATE_BLEND_ALPHA variant
-		var B_ADD:Int        = 0x00200010; // BGFX_STATE_BLEND_ADD variant
-		var B_MULTIPLY:Int   = 0x00400010; // BGFX_STATE_BLEND_MULTIPLY
-		var B_SCREEN:Int     = 0x00800010; // BGFX_STATE_BLEND_SCREEN
-		var B_SUBTRACT:Int   = 0x01000010; // BGFX_STATE_BLEND_SUBTRACT
-
-		return switch(blend)
-		{
-			case ADD:      WMASK | B_ADD;
-			case MULTIPLY: WMASK | B_MULTIPLY;
-			case SCREEN:   WMASK | B_SCREEN;
-			case SUBTRACT: WMASK | B_SUBTRACT;
-			case DARKEN:   WMASK | B_MULTIPLY;   // Closest approximation
-			case LIGHTEN:  WMASK | B_SCREEN;      // Closest approximation
-			case DIFFERENCE, OVERLAY, HARDLIGHT: WMASK | B_ALPHA; // Fallback to alpha
-			default:       WMASK | B_ALPHA;       // NORMAL
-		}
+		return BLEND_MAP.exists(blend) ? BLEND_MAP.get(blend) : (WRMASK | B_ALPHA);
 	}
 
 	static function ortho(r:Array<Float>, l:Float, rt:Float, b:Float, t:Float, n:Float, f:Float):Void

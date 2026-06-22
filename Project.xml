@@ -58,6 +58,15 @@
 	<!-- Always enabled — this is the default rendering path -->
 	<define name="BGFX_RENDERER" />
 
+		<!-- When the bgfx C native library (libs/hxbgfx/lib/) is compiled and linked,
+		     uncomment this define to activate the full multi-API rendering path.
+		     Without it, BgfxAPI.probeNativeAvailability() returns false and the
+		     engine falls back to standard OpenFL rendering with zero overhead. -->
+		<!-- <haxedef name="hxbgfx_native" /> -->
+
+		<!-- High-performance FPS display: shows frame time in microseconds. -->
+		<!-- <haxedef name="HIGH_PERF_FPS" /> -->
+
 	<!-- Force a specific rendering API at compile time (optional) -->
 	<!-- Without these, bgfx auto-detects the best API at runtime -->
 	<section if="GRAPHICS_API_DIRECTX12">

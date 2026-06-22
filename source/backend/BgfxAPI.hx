@@ -32,6 +32,39 @@ package backend;
  */
 class BgfxAPI
 {
+	/**
+	 * Whether the bgfx native C library is compiled and linked.
+	 * When false, all CFFI calls return stub values — the engine
+	 * runs on the standard OpenFL rendering path.
+	 *
+	 * Set to true automatically when `#if hxbgfx_native` is defined
+	 * (in Project.xml, uncomment the haxedef after compiling the C bridge).
+	 */
+	public static var nativeAvailable(default, null):Bool = false;
+
+	/**
+	 * Lightweight probe that detects whether the real bgfx C library
+	 * is linked (as opposed to the stub implementations in this file).
+	 *
+	 * The stub `getRendererName()` always returns "OpenGL" regardless
+	 * of the passed renderer type. If the real library is linked, it
+	 * returns the actual backend name (e.g. "Metal", "Vulkan", etc.).
+	 */
+	public static function probeNativeAvailability():Bool
+	{
+		#if hxbgfx_native
+		nativeAvailable = true;
+		return true;
+		#else
+		// Test: stub always returns "OpenGL". Real lib returns actual name.
+		// If we pass B_Vulkan (9) and get back anything other than "OpenGL",
+		// the native library is active.
+		var name = getRendererName(9); // 9 = Vulkan
+		nativeAvailable = (name != "OpenGL");
+		return nativeAvailable;
+		#end
+	}
+
 	// ============================================================
 	// bgfx lifecycle
 	// ============================================================
