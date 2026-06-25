@@ -8,7 +8,6 @@
 #include <SDL.h>
 #include <string.h>
 #include <stdio.h>
-#include <dlfcn.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -26,25 +25,13 @@
 // ================================================================
 // SDL window auto-detection
 // ================================================================
-// Runtime SDL2 resolution via dlsym — avoids linking a separate
-// SDL2 library which would cause ObjC class duplication with lime.ndll.
 static SDL_Window* get_sdl_window(void)
 {
-    typedef SDL_Window* (*fn_GetCurrentWindow)(void);
-    typedef SDL_Window* (*fn_GetWindowFromID)(Uint32);
-    static fn_GetCurrentWindow p_get = NULL;
-    static fn_GetWindowFromID p_id = NULL;
-    static int resolved = 0;
-    if (!resolved) {
-        p_get = (fn_GetCurrentWindow)dlsym(RTLD_DEFAULT, "SDL_GL_GetCurrentWindow");
-        p_id = (fn_GetWindowFromID)dlsym(RTLD_DEFAULT, "SDL_GetWindowFromID");
-        resolved = 1;
-    }
-    SDL_Window* win = NULL;
-    if (p_get) win = p_get();
+    SDL_Window* win = SDL_GL_GetCurrentWindow();
     if (win != NULL) return win;
-    if (p_id) win = p_id(1);
-    return win;
+    win = SDL_GetWindowFromID(1);
+    if (win != NULL) return win;
+    return NULL;
 }
 
 extern "C" void hxbgfx_set_sdl_window(void* window) { (void)window; }
@@ -53,13 +40,9 @@ void* hxbgfx_get_native_window_handle(void)
 {
     SDL_Window* win = get_sdl_window();
     if (win == NULL) return NULL;
-    typedef SDL_bool (*fn_GetWindowWMInfo)(SDL_Window*, SDL_SysWMinfo*);
-    static fn_GetWindowWMInfo p_wmi = NULL;
-    if (!p_wmi) p_wmi = (fn_GetWindowWMInfo)dlsym(RTLD_DEFAULT, "SDL_GetWindowWMInfo");
-    if (!p_wmi) return NULL;
     SDL_SysWMinfo wmInfo;
     SDL_VERSION(&wmInfo.version);
-    if (!p_wmi(win, &wmInfo)) return NULL;
+    if (!SDL_GetWindowWMInfo(win, &wmInfo)) return NULL;
 #ifdef _WIN32
     return (void*)wmInfo.info.win.window;
 #elif defined(__APPLE__)
@@ -75,13 +58,9 @@ void* hxbgfx_get_native_display_handle(void)
 {
     SDL_Window* win = get_sdl_window();
     if (win == NULL) return NULL;
-    typedef SDL_bool (*fn_GetWindowWMInfo)(SDL_Window*, SDL_SysWMinfo*);
-    static fn_GetWindowWMInfo p_wmi2 = NULL;
-    if (!p_wmi2) p_wmi2 = (fn_GetWindowWMInfo)dlsym(RTLD_DEFAULT, "SDL_GetWindowWMInfo");
-    if (!p_wmi2) return NULL;
     SDL_SysWMinfo wmInfo;
     SDL_VERSION(&wmInfo.version);
-    if (!p_wmi2(win, &wmInfo)) return NULL;
+    if (!SDL_GetWindowWMInfo(win, &wmInfo)) return NULL;
 #ifdef _WIN32
     return (void*)wmInfo.info.win.hinstance;
 #elif defined(__APPLE__)

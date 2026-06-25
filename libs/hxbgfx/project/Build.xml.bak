@@ -13,6 +13,8 @@
 				<lib name="${BGFX_DIR}/lib/macos/libbx.a" />
 				<lib name="${BGFX_DIR}/lib/macos/libbimg.a" />
 
+				<compilerflag value="-L/opt/homebrew/lib" />
+				<compilerflag value="-lSDL2" />
 				<compilerflag value="-framework Metal" />
 				<compilerflag value="-framework MetalKit" />
 				<compilerflag value="-framework MetalFX" />
@@ -50,6 +52,7 @@
 				<lib name="ole32.lib" />
 				<lib name="advapi32.lib" />
 				<lib name="psapi.lib" />
+				<lib name="SDL2.lib" />
 			</section>
 
 			<section if="linux">
@@ -71,6 +74,7 @@
 				<lib name="-lpthread" />
 				<lib name="-lrt" />
 				<lib name="-ludev" />
+				<lib name="-lSDL2" />
 			</section>
 		</target>
 	</xml>

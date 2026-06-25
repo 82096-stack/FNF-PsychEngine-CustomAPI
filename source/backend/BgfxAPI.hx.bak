@@ -199,40 +199,18 @@ bgfx_renderer_type_t bgfx_get_renderer_type(void);
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
 #endif
-#include <dlfcn.h>
 
-// ── SDL window detection (dlsym-based, resolves from lime.ndll) ──────────────────────────────────────────
-// Runtime SDL2 function resolution via dlsym — resolves symbols
-// from lime.ndll at runtime instead of linking a separate SDL2 library.
-// This avoids Objective-C class duplication between the main binary
-// and lime.ndll's built-in SDL2, which can cause crashes on macOS.
+// ── SDL window detection ──────────────────────────────────────────
 static SDL_Window* _hx_sdl_window(void) {
-    typedef SDL_Window* (*fn_GetCurrentWindow)(void);
-    typedef SDL_Window* (*fn_GetWindowFromID)(Uint32);
-    static fn_GetCurrentWindow p_get = NULL;
-    static fn_GetWindowFromID p_id = NULL;
-    static int resolved = 0;
-    if (!resolved) {
-        p_get = (fn_GetCurrentWindow)dlsym(RTLD_DEFAULT, "SDL_GL_GetCurrentWindow");
-        p_id = (fn_GetWindowFromID)dlsym(RTLD_DEFAULT, "SDL_GetWindowFromID");
-        resolved = 1;
-    }
-    SDL_Window* w = NULL;
-    if (p_get) w = p_get();
-    return w ? w : (p_id ? p_id(1) : NULL);
+    SDL_Window* w = SDL_GL_GetCurrentWindow();
+    return w ? w : SDL_GetWindowFromID(1);
 }
 
 void* hxbgfx_get_native_window_handle(void) {
     SDL_Window* win = _hx_sdl_window();
     if (!win) return NULL;
-
-    typedef SDL_bool (*fn_GetWindowWMInfo)(SDL_Window*, SDL_SysWMinfo*);
-    static fn_GetWindowWMInfo p_wmi = NULL;
-    if (!p_wmi) p_wmi = (fn_GetWindowWMInfo)dlsym(RTLD_DEFAULT, "SDL_GetWindowWMInfo");
-    if (!p_wmi) return NULL;
-
     SDL_SysWMinfo wmi; SDL_VERSION(&wmi.version);
-    if (!p_wmi(win, &wmi)) return NULL;
+    if (!SDL_GetWindowWMInfo(win, &wmi)) return NULL;
 #ifdef _WIN32
     return (void*)wmi.info.win.window;
 #elif defined(__APPLE__)

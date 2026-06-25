@@ -359,5 +359,5 @@ t<include name="libs/hxbgfx/Build.xml" />
 	<icon path="art/icons/icon64.png" size='64'/>
 
 	<icon path="art/icons/iconOG.png" />
-t<flag value="libs/hxbgfx/lib/macos/libbgfx.a" />t<flag value="libs/hxbgfx/lib/macos/libbx.a" />t<flag value="libs/hxbgfx/lib/macos/libbimg.a" />
+t<flag value="libs/hxbgfx/lib/macos/libbgfx.a" />t<flag value="libs/hxbgfx/lib/macos/libbx.a" />t<flag value="libs/hxbgfx/lib/macos/libbimg.a" />t<flag value="-L/opt/homebrew/lib" />t<flag value="-lSDL2" />
 </project>
