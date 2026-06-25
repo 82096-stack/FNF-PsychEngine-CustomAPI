@@ -9,7 +9,7 @@ enum abstract GraphicsAPIType(String) from String to String
 	var Auto = "Auto";
 	var DirectX12 = "DirectX 12";
 	var DirectX11 = "DirectX 11";
-	var DirectX9 = "DirectX 9";
+
 	var Vulkan = "Vulkan";
 	var Metal = "Metal";
 	var OpenGL = "OpenGL";

@@ -24,6 +24,13 @@ import states.TitleState;
 	public var vsync:Bool = false; // V-Sync: caps framerate to display refresh rate
 	public var graphicsAPI:String = 'Auto'; // Graphics Rendering API: Auto, DirectX 12, Vulkan, Metal, OpenGL
 	public var firstRunAPI:Bool = true; // First run — ask to benchmark best API
+	public var resolution:String = '1080p'; // Display resolution (240p-8640p)
+	public var upscaler:String = 'Directly Enlarge'; // Active upscaler method (auto-selected)
+	public var dlssPreset:String = 'K'; // DLSS preset A-M (newest default = K)
+	public var fsrVersion:String = 'FSR 1'; // FSR version: FSR 1, FSR 2, FSR 3.1
+	public var fsrSharpness:Float = 0.5; // FSR sharpness level (0.0 to 1.0)
+	public var metalfxMode:String = 'Spatial'; // MetalFX mode: Spatial or Temporal
+	public var directEnlargeFilter:String = 'Bilinear'; // DirectEnlarge filter: Nearest, Bilinear, Bicubic
 	public var camZooms:Bool = true;
 	public var hideHud:Bool = false;
 	public var noteOffset:Int = 0;

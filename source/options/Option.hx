@@ -16,6 +16,7 @@ enum OptionType {
 	KEYBIND;
 }
 
+@:allow(options.BaseOptionsMenu)
 class Option
 {
 	public var child:Alphabet;
@@ -38,7 +39,39 @@ class Option
 	public var description:String = '';
 	public var name:String = 'Unknown';
 
-	public var defaultKeys:Keybind = null; //Only used in keybind type
+	public var defaultKeys:Keybind = null;
+	public var isActiveFn:Void->Bool = null; // Callback: returns false if option should be skipped
+	public var confirmOnAccept:Bool = false; // When true, left/right previews only; ACCEPT commits
+	public var onAccept:Void->Bool = null; // Called on ACCEPT for confirmOnAccept options; return false to block
+	private var _previewValue:Dynamic = null; // Internal storage for previewed value
+
+	public var previewValue(get, set):Dynamic;
+	function get_previewValue():Dynamic { return _previewValue; }
+	function set_previewValue(value:Dynamic):Dynamic { return _previewValue = value; }
+
+	public function isActive():Bool
+	{
+		return isActiveFn != null ? isActiveFn() : true;
+	}
+
+	public function commitPreview():Void
+	{
+		if (_previewValue != null)
+		{
+			setValue(_previewValue);
+			change();
+		}
+	}
+
+	public function cancelPreview():Void
+	{
+		_previewValue = getValue();
+		if (type == STRING && options != null)
+		{
+			var idx = options.indexOf(_previewValue);
+			if (idx >= 0) curOption = idx;
+		}
+	}
 	public var keys:Keybind = null; //Only used in keybind type
 
 	public function new(name:String, description:String = '', variable:String, type:OptionType = BOOL, ?options:Array<String> = null, ?translation:String = null)

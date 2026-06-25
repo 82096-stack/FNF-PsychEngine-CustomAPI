@@ -62,10 +62,13 @@ haxelib git grig.audio https://gitlab.com/haxe-grig/grig.audio.git cbf91e2180fd2
 
 echo .
 echo "  hxbgfx (local dev lib)"
-haxelib dev hxbgfx libs/hxbgfx
 
 echo .
 echo ======================================================
+echo "  hxbgfx (local dev lib)"
+haxelib dev hxbgfx libs/hxbgfx
+echo .
+
 echo "Setup complete — all packages installed"
 echo ======================================================
 echo .
@@ -73,9 +76,6 @@ echo "════════════════════════�
 echo "  NEXT: Build native libraries before first compile"
 echo "══════════════════════════════════════════════════════"
 echo .
-echo "  [Required] bgfx — multi-API rendering backend:"
-echo "    cd libs/hxbgfx/project"
-echo "    ./build_bgfx_libs.sh"
 echo .
 echo "──────────────────────────────────────────────────────"
 echo "  Build commands:"
@@ -98,3 +98,10 @@ echo "      sudo dnf install vlc        # Fedora"
 echo .
 echo "  Video formats: MP4 (H.264), WebM (VP9), MKV, and more"
 echo ======================================================
+
+echo "  bgfx: pre-built for all PC platforms (macOS/Windows/Linux)"
+echo "    Linux: To build bgfx on Linux (with Vulkan patches):"
+echo "      cd libs/hxbgfx"
+echo "      ./build_linux_x64.sh    # 64-bit"
+echo "      ./build_linux_x86.sh    # 32-bit"
+echo "    macOS/Windows: Pre-built libs included"

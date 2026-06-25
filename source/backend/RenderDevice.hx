@@ -2,9 +2,13 @@ package backend;
 
 import flixel.FlxG;
 import openfl.display.BlendMode;
+import backend.upscale.IUpscaler;
+import cpp.RawPointer;
+import cpp.Float32;
+import cpp.Pointer;
 
 // Inline bgfx types
-enum abstract BgfxRendererType(Int) to Int { var B_Noop=0; var B_Direct3D9=1; var B_Direct3D11=2; var B_Direct3D12=3; var B_Metal=5; var B_OpenGLES=7; var B_OpenGL=8; var B_Vulkan=9; }
+enum abstract BgfxRendererType(Int) to Int { var B_Noop=0; var B_Direct3D11=2; var B_Direct3D12=3; var B_Metal=5; var B_OpenGLES=7; var B_OpenGL=8; var B_Vulkan=9; }
 enum abstract BgfxTextureFormat(Int) to Int { var Unknown=34; var BGRA8=66; var RGBA8=67; }
 enum abstract BgfxResetFlags(Int) to Int { var None=0; var VSync=0x0080; var FlipAfterRender=0x0800; var HiDPI=0x4000; }
 enum abstract BgfxClearFlags(Int) to Int { var None5=0; var Color0=1; var Depth=2; var Stencil=4; }
@@ -66,6 +70,16 @@ class RenderDevice
 	public static inline var VIEW_MAIN:Int  = 1;
 	public static inline var VIEW_CAM0:Int  = 2;
 
+	// Offscreen render targets for upscaling
+	static var _rtLowRes:Int = 0;      // bgfx frame buffer handle (low-res render target)
+	static var _rtLowResTex:Int = 0;   // bgfx texture handle for low-res
+	static var _rtOutputTex:Int = 0;   // bgfx texture handle for output
+	static var _internalW:Int = 1920;  // internal render resolution width (1080p)
+	static var _internalH:Int = 1080;  // internal render resolution height
+	static var _outputW:Int = 1920;    // output (window) resolution width
+	static var _outputH:Int = 1080;    // output (window) resolution height
+	static var _upscaleActive:Bool = false; // true when using offscreen render + upscale
+
 	// Cached vertex layout (avoids null check per draw call)
 	static var _cachedLayout:BgfxVertexLayout = null;
 	// Reusable transient vertex buffer (avoids allocation per draw call)
@@ -76,25 +90,22 @@ class RenderDevice
 		if (initialized) return true;
 		BgfxVertexLayoutManager.invalidate();
 		_cachedLayout = null;
-		var init = new BgfxInit();
-		init.type = apiToRendererType(api);
-		init.platformData.nwh = BgfxAPI.hxGetNativeWindowHandle();
-		init.platformData.ndt = BgfxAPI.hxGetNativeDisplayHandle();
-		var res = new BgfxResolution();
-		res.width = width; res.height = height; res.format = BGRA8;
-		res.reset = vsync ? VSync : 0;
-		res.reset |= FlipAfterRender;
-		res.numBackBuffers = 2;
-		// Allow CPU to pipeline up to 2 frames ahead of GPU (Metal / Vulkan / D3D12)
-		res.maxFrameLatency = 2;
-		init.resolution = res;
-		var limits = new BgfxInitLimits();
-		limits.transientVbSize = 16 * 1024 * 1024;
-		limits.transientIbSize = 4 * 1024 * 1024;
-		// Enable multi-threaded command recording when bgfx supports it
-		limits.maxEncoders = 2;
-		init.limits = limits;
-		if (!BgfxAPI.init(init)) { trace('RenderDevice: init failed'); return false; }
+
+		var flags = vsync ? VSync : 0;
+		flags |= FlipAfterRender;
+		if (!BgfxAPI.init(
+			apiToRendererType(api),
+			BgfxAPI.hxGetNativeWindowHandle(),
+			BgfxAPI.hxGetNativeDisplayHandle(),
+			width, height,
+			BGRA8,                   // format
+			flags,                   // resetFlags
+			2,                       // numBackBuffers
+			2,                       // maxFrameLatency
+			2,                       // maxEncoders
+			16 * 1024 * 1024,       // transientVbSize
+			4 * 1024 * 1024         // transientIbSize
+		)) { trace('RenderDevice: init failed'); return false; }
 		initialized = true; activeAPI = api;
 		setupView(width, height);
 		trace('RenderDevice: initialized with ${api}');
@@ -142,9 +153,39 @@ class RenderDevice
 	{
 		if (!initialized) return;
 		BgfxDrawBatcher.flushAll();
+
+		// Run upscaler if active
+		if (_upscaleActive && _activeUpscaler != null && _rtLowResTex != 0)
+		{
+			_activeUpscaler.apply(_rtLowResTex, 0);
+		}
+
 		BgfxAPI.frame(false);
 		FramePacer.endFrame();
 	}
+
+	// ==============================================================
+	// UPSCALER MANAGEMENT
+	// ==============================================================
+
+	static var _activeUpscaler:backend.upscale.IUpscaler = null;
+	static var _currentUpscalerName:String = 'Directly Enlarge';
+
+	public static function setUpscaler(upscaler:backend.upscale.IUpscaler, name:String):Void
+	{
+		if (_activeUpscaler != null)
+			_activeUpscaler.dispose();
+		_activeUpscaler = upscaler;
+		_currentUpscalerName = name;
+
+		if (upscaler != null && _upscaleActive)
+		{
+			upscaler.init(_internalW, _internalH, _outputW, _outputH);
+			trace('RenderDevice: upscaler set to ${name}');
+		}
+	}
+
+	public static function getActiveUpscalerName():String { return _currentUpscalerName; }
 
 	public static function switchAPI(newAPI:GraphicsAPIType, width:Int, height:Int):Bool
 	{
@@ -288,9 +329,71 @@ class RenderDevice
 		if (!initialized) return;
 		viewProjections.clear();
 		ortho(projMatrix, 0, width, height, 0, -1, 1);
-		BgfxAPI.reset(width, height, FlipAfterRender, BGRA8);
+		BgfxAPI.reset(width, height, FlipAfterRender, BGRA8, 2, 2);
 		BgfxAPI.setViewRect(VIEW_MAIN, 0, 0, width, height);
 	}
+
+	// ==================================================================
+	// OFFSCREEN RENDER TARGETS (for upscaling)
+	// ==================================================================
+
+	/**
+	 * Initialize offscreen render targets for upscaling.
+	 * Creates a low-res texture+FB (internal render resolution) and an
+	 * output texture+FB (window resolution), connected by the upscaler.
+	 *
+	 * When upscaling is active:
+	 *   View 0 (VIEW_CLEAR): clears the low-res target
+	 *   View 1 (VIEW_MAIN):  renders game content to low-res FB
+	 *   endFrame:            runs upscaler (low-res → output FB), then blits to backbuffer
+	 *
+	 * When upscaling is NOT active (resolution <= 1080p):
+	 *   Everything renders directly to the backbuffer (standard path).
+	 */
+	public static function initRenderTargets(internalW:Int, internalH:Int, outputW:Int, outputH:Int):Void
+	{
+		if (!initialized) return;
+
+		destroyRenderTargets();
+
+		_internalW = internalW;
+		_internalH = internalH;
+		_outputW = outputW;
+		_outputH = outputH;
+
+		// Create low-res render texture
+		_rtLowResTex = BgfxAPI.createRenderTexture(internalW, internalH, BGRA8);
+		if (_rtLowResTex != 0)
+			_rtLowRes = BgfxAPI.createFrameBuffer(_rtLowResTex);
+
+		// Create output render texture
+		_rtOutputTex = BgfxAPI.createRenderTexture(outputW, outputH, BGRA8);
+		// Output FB created lazily if needed
+
+		_upscaleActive = (_rtLowRes != 0);
+		if (_upscaleActive)
+		{
+			// Redirect VIEW_MAIN to render into the low-res framebuffer
+			BgfxAPI.setViewFrameBuffer(VIEW_MAIN, _rtLowRes);
+			BgfxAPI.setViewRect(VIEW_MAIN, 0, 0, internalW, internalH);
+			trace('RenderDevice: upscale targets created (${internalW}x${internalH} → ${outputW}x${outputH})');
+		}
+	}
+
+	public static function destroyRenderTargets():Void
+	{
+		if (_rtLowRes != 0) { BgfxAPI.destroyFrameBuffer(_rtLowRes); _rtLowRes = 0; }
+		if (_rtLowResTex != 0) { BgfxAPI.destroyTexture(_rtLowResTex); _rtLowResTex = 0; }
+		if (_rtOutputTex != 0) { BgfxAPI.destroyTexture(_rtOutputTex); _rtOutputTex = 0; }
+		_upscaleActive = false;
+
+		// Restore VIEW_MAIN to render to default backbuffer
+		if (initialized)
+			BgfxAPI.setViewFrameBuffer(VIEW_MAIN, 0);
+	}
+
+	/** Returns true if offscreen render + upscale is currently active. */
+	public static function isUpscaleActive():Bool { return _upscaleActive; }
 
 	// ==================================================================
 	// VIEW CLEAR SETUP
@@ -334,31 +437,31 @@ class RenderDevice
 	{
 		if (!initialized || numVertices == 0) return;
 
-		// Cached vertex layout (built once, reused every draw call)
+		// Get layout from cache
 		if (_cachedLayout == null)
 			_cachedLayout = BgfxVertexLayoutManager.get2DLayout();
 		if (_cachedLayout == null) return;
 
-		// Reusable transient vertex buffer (pool, avoid per-call allocation)
-		if (_reusableTVB == null)
-			_reusableTVB = new BgfxTransientVertexBuffer();
-		var tvb = _reusableTVB;
-		BgfxAPI.allocTransientVertexBuffer(tvb, numVertices, _cachedLayout);
-		if (tvb.size == 0) return;
+		// Allocate transient VB via C bridge
+		var outNum:Int = 0;
+		var outNumPtr:cpp.RawPointer<Int> = cast cpp.Pointer.addressOf(outNum);
+		var dataPtr = BgfxAPI.allocTransientVB(numVertices, _cachedLayout.hash, _cachedLayout.stride, outNumPtr);
+		if (dataPtr == null || outNum == 0) return;
 
-		// Copy vertex data into the transient vertex buffer
-		tvb.data = vertices;
-		tvb.size = numVertices * 20; // 20 bytes per vertex
+		// Copy vertex bytes into GPU-visible buffer using raw pointer
+		var byteSize = numVertices * 20;
+		untyped __cpp__('memcpy({0}, &({1}->b[0]), {2})', dataPtr, vertices, byteSize);
 
-		// O(1) map lookup — faster than switch branching for hot path
+		// Set render state
 		BgfxAPI.setState(BLEND_MAP.get(blend), 0);
 		if (tex != 0)
 			BgfxAPI.setTexture(0, BgfxShaderManager.getTextureSampler(), tex, 0);
 
-		// Single map lookup (get() returns null if missing, avoiding exists()+get()
+		// Set projection matrix — get RawPointer from Array<Float>
 		var proj = viewProjections.get(viewId);
 		if (proj == null) proj = projMatrix;
-		BgfxAPI.setViewTransform(viewId, null, proj);
+		var projPtr:RawPointer<Float32> = untyped __cpp__('(float*)&({0}[0])', proj);
+		BgfxAPI.setViewTransform(viewId, null, projPtr);
 
 		BgfxAPI.touch(viewId);
 		BgfxAPI.submit(viewId, prog, 0, 0);
@@ -402,7 +505,6 @@ class RenderDevice
 		if ((s & (1 << B_Vulkan)) != 0) a.push(Vulkan);
 		if ((s & (1 << B_Direct3D12)) != 0) a.push(DirectX12);
 		if ((s & (1 << B_Direct3D11)) != 0) a.push(DirectX11);
-		if ((s & (1 << B_Direct3D9)) != 0) a.push(DirectX9);
 		if ((s & (1 << B_Metal)) != 0) a.push(Metal);
 		return a;
 	}
@@ -414,7 +516,6 @@ class RenderDevice
 			case Vulkan: B_Vulkan;
 			case DirectX12: B_Direct3D12;
 			case DirectX11: B_Direct3D11;
-			case DirectX9: B_Direct3D9;
 			default: B_OpenGL;
 		}
 	}

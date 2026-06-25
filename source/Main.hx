@@ -210,7 +210,7 @@ class Main extends Sprite
 		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);
 		addChild(fpsVar);
 		Lib.current.stage.align = "tl";
-		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
+		Lib.current.stage.scaleMode = StageScaleMode.SHOW_ALL;
 		if(fpsVar != null) {
 			fpsVar.visible = ClientPrefs.data.showFPS;
 		}
@@ -308,4 +308,26 @@ class Main extends Sprite
 		Sys.exit(1);
 	}
 	#end
+
+	/**
+	 * Get pixel dimensions for a resolution label (e.g. "1080p" -> 1920x1080).
+	 */
+	public static function getResolutionDimensions(key:String):{width:Int, height:Int}
+	{
+		return switch(key)
+		{
+			case '240p':  {width: 426,  height: 240};
+			case '360p':  {width: 640,  height: 360};
+			case '480p':  {width: 854,  height: 480};
+			case '720p':  {width: 1280, height: 720};
+			case '1080p': {width: 1920, height: 1080};
+			case '1440p': {width: 2560, height: 1440};
+			case '2160p': {width: 3840, height: 2160};
+			case '2880p': {width: 5120, height: 2880};
+			case '3240p': {width: 5760, height: 3240};
+			case '4320p': {width: 7680, height: 4320};
+			case '8640p': {width: 15360, height: 8640};
+			default: null;
+		}
+	}
 }

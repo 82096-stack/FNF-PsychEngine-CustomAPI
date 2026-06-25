@@ -60,10 +60,13 @@ echo [3/3] Registering local dev libraries...
 echo.
 
 echo   hxbgfx (local dev lib)
-haxelib dev hxbgfx libs/hxbgfx
 
 echo.
 echo ======================================================
+echo   hxbgfx (local dev lib)
+haxelib dev hxbgfx libs/hxbgfx
+echo.
+
 echo Setup complete - all packages installed
 echo ======================================================
 echo.

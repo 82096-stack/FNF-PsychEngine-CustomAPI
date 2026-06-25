@@ -182,7 +182,27 @@ class BaseOptionsMenu extends MusicBeatSubstate
 					}
 
 				default:
-					if(controls.UI_LEFT || controls.UI_RIGHT)
+					if (curOption.confirmOnAccept && controls.ACCEPT)
+					{
+						if (curOption.onAccept != null)
+						{
+							if (curOption.onAccept())
+							{
+								curOption.commitPreview();
+								updateTextFrom(curOption);
+								curOption.change();
+								FlxG.sound.play(Paths.sound('confirmMenu'));
+							}
+						}
+						else
+						{
+							curOption.commitPreview();
+							updateTextFrom(curOption);
+							curOption.change();
+							FlxG.sound.play(Paths.sound('confirmMenu'));
+						}
+					}
+					else if(controls.UI_LEFT || controls.UI_RIGHT)
 					{
 						var pressed = (controls.UI_LEFT_P || controls.UI_RIGHT_P);
 						if(holdTime > 0.5 || pressed)
@@ -222,13 +242,24 @@ class BaseOptionsMenu extends MusicBeatSubstate
 											num = 0;
 		
 										curOption.curOption = num;
-										curOption.setValue(curOption.options[num]);
+										if (curOption.confirmOnAccept)
+										{
+											curOption.previewValue = curOption.options[num];
+											updateTextFromPreview(curOption);
+										}
+										else
+										{
+											curOption.setValue(curOption.options[num]);
+										}
 										//trace(curOption.options[num]);
 
 									default:
 								}
-								updateTextFrom(curOption);
-								curOption.change();
+								if (!curOption.confirmOnAccept)
+								{
+									updateTextFrom(curOption);
+									curOption.change();
+								}
 								FlxG.sound.play(Paths.sound('scrollMenu'));
 							}
 							else if(curOption.type != STRING)
@@ -471,10 +502,25 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		var def:Dynamic = option.defaultValue;
 		option.text = text.replace('%v', val).replace('%d', def);
 	}
-	
+
+	function updateTextFromPreview(option:Option) {
+		if (option.child != null) {
+			var child:AttachedText = cast option.child;
+			child.text = option.previewValue;
+		}
+	}
+
 	function changeSelection(change:Int = 0)
 	{
 		curSelected = FlxMath.wrap(curSelected + change, 0, optionsArray.length - 1);
+
+		// Skip inactive options
+		var safety = 0;
+		while (!optionsArray[curSelected].isActive() && safety < optionsArray.length)
+		{
+			curSelected = FlxMath.wrap(curSelected + (change >= 0 ? 1 : -1), 0, optionsArray.length - 1);
+			safety++;
+		}
 
 		descText.text = optionsArray[curSelected].description;
 		descText.screenCenter(Y);
@@ -483,13 +529,13 @@ class BaseOptionsMenu extends MusicBeatSubstate
 		for (num => item in grpOptions.members)
 		{
 			item.targetY = num - curSelected;
-			item.alpha = 0.6;
-			if (item.targetY == 0) item.alpha = 1;
+			item.alpha = optionsArray[num].isActive() ? 0.6 : 0.4;
+			if (item.targetY == 0 && optionsArray[num].isActive()) item.alpha = 1;
 		}
 		for (text in grpTexts)
 		{
-			text.alpha = 0.6;
-			if(text.ID == curSelected) text.alpha = 1;
+			text.alpha = optionsArray[text.ID].isActive() ? 0.6 : 0.4;
+			if(text.ID == curSelected && optionsArray[text.ID].isActive()) text.alpha = 1;
 		}
 
 		descBox.setPosition(descText.x - 10, descText.y - 10);

@@ -36,7 +36,6 @@ class GraphicsAPI
 		if (apis.contains(Metal)) return Metal;
 		if (apis.contains(DirectX12)) return DirectX12;
 		if (apis.contains(DirectX11)) return DirectX11;
-		if (apis.contains(DirectX9)) return DirectX9;
 		if (apis.contains(Vulkan)) return Vulkan;
 		return OpenGL;
 	}
@@ -149,8 +148,6 @@ class GraphicsAPI
 		return DirectX12;
 		#elseif GRAPHICS_API_DIRECTX11
 		return DirectX11;
-		#elseif GRAPHICS_API_DIRECTX9
-		return DirectX9;
 		#elseif GRAPHICS_API_VULKAN
 		return Vulkan;
 		#elseif GRAPHICS_API_METAL

@@ -30,7 +30,7 @@ class BgfxTextureManager
 			if (pixels == null) return 0;
 			var mem = BgfxAPI.copy(pixels, bmp.width * bmp.height * 4);
 			if (mem == null) return 0;
-			return BgfxAPI.createTexture2D(bmp.width, bmp.height, false, 1, 66 /*BGRA8*/, 0, mem);
+			return BgfxAPI.createTexture2DCompat(bmp.width, bmp.height, false, 1, 66 /*BGRA8*/, 0, mem);
 		}
 		catch (e:Dynamic)
 		{
